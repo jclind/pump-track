@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import ExerciseList from '../Components/ExerciseList/ExerciseList'
-import WorkoutList from '../Components/WorkoutList/WorkoutList'
+import WorkoutListContainer from '../Components/WorkoutListContainer/WorkoutListContainer'
 import Footer from '../Components/Footer/Footer'
 import { User } from 'firebase/auth'
 import { WorkoutDataType } from '../types'
@@ -36,7 +36,7 @@ const Home = ({ user, setShowLoadingOverlay }: HomeProps) => {
         workoutTitle={currWorkoutTitle}
         setWorkoutTitle={setCurrWorkoutTitle}
       />
-      <WorkoutList
+      <WorkoutListContainer
         workoutList={workoutList}
         setWorkoutList={setWorkoutList}
         loading={workoutListLoading}

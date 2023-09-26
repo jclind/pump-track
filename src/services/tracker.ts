@@ -620,6 +620,52 @@ export const updateUniqueTitles = async (
   }
 }
 
+export const addAndRemoveExercisesFromWorkout = async (
+  workoutID: string,
+  workoutDate: number | null,
+  allExercises: ExerciseDataType[],
+  addedExercises: ExerciseDataType[],
+  removedExercises: ExerciseDataType[]
+) => {
+  try {
+    const uid = auth?.currentUser?.uid
+    if (uid) {
+      const userDataRef = doc(db, 'usersData', uid)
+
+      const currWorkoutRef = doc(userDataRef, 'workouts', workoutID)
+
+      updateDoc(currWorkoutRef, {
+        exercises: allExercises,
+      })
+
+      addedExercises.forEach(exercise => {
+        const index = allExercises.findIndex(ex => ex.id === exercise.id)
+        const exerciseDocRef = doc(userDataRef, 'exercises', exercise.id)
+        setDoc(exerciseDocRef, {
+          ...exercise,
+          name: exercise.name.toLowerCase(),
+          workoutID,
+          workoutDate,
+          index,
+        })
+      })
+
+      removedExercises.forEach(exercise => {
+        const deletedExerciseDocRef = doc(userDataRef, 'exercises', exercise.id)
+        deleteDoc(deletedExerciseDocRef)
+      })
+
+      const addedTitles = addedExercises.map(ex => ex.name)
+      const removedTitles = removedExercises.map(ex => ex.name)
+      updateUniqueTitles('exerciseTitles', addedTitles, removedTitles)
+    }
+  } catch (error: any) {
+    const message = error.message || error
+    console.log(error)
+    toast.error(message, { position: 'bottom-center' })
+  }
+}
+
 export const findUniqueWorkoutTitlesFromCollection = async () => {
   const uid = auth?.currentUser?.uid
   if (uid) {

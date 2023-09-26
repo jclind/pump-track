@@ -171,7 +171,7 @@ type ExerciseType = {
   text: string
 }
 
-const generateNewExercise = (): ExerciseType => {
+export const generateNewExercise = (): ExerciseType => {
   const id = uuidv4()
   return {
     id,

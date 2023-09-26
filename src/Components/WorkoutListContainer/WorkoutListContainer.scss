@@ -1,0 +1,72 @@
+@import '../../helpers.scss';
+
+.workout-list-container {
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+  max-width: $max-width;
+  margin: 0 auto;
+  gap: 1rem;
+  button.scroll-to-workouts-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: $tertiary-text;
+    font-size: 0.8rem;
+    margin: 0 auto;
+    margin-bottom: 3rem;
+    .icons {
+      display: flex;
+      flex-direction: column;
+      animation: upAndDown 4s ease-in-out infinite;
+      .icon {
+        margin-bottom: -9px;
+      }
+    }
+  }
+  .title-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    h5 {
+      width: fit-content;
+      padding-top: 1rem;
+    }
+    .workout-titles-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      button {
+        font-size: 0.9rem;
+        font-weight: 700;
+        border: 1px solid $border-color;
+        border-radius: 10px;
+        padding: 0.25rem 0.5rem;
+        width: fit-content !important;
+        color: $tertiary-text;
+      }
+      button.active {
+        background: $primary;
+        color: $primary-background;
+      }
+    }
+  }
+  .workout-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+  }
+}
+
+@keyframes upAndDown {
+  0%,
+  100% {
+    transform: translateY(-3px); /* Start and end position (no translation) */
+  }
+  50% {
+    transform: translateY(0px); /* Middle position (move up) */
+  }
+}

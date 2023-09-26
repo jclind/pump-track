@@ -15,7 +15,6 @@
     background: $primary-background;
     border: 1px solid $border-color;
     border-radius: $border-radius;
-    padding: 0.5rem;
     box-shadow: rgba(0, 0, 0, 0.16) 0px 10px 36px 0px,
       rgba(0, 0, 0, 0.06) 0px 0px 0px 1px;
     .item {
@@ -26,6 +25,16 @@
       font-size: 0.9rem;
       font-weight: 800;
       color: $secondary-text;
+      border-bottom: 1px solid $border-color;
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 0;
+      &:last-child {
+        border: 0;
+      }
+      &:hover {
+        background: $secondary-background;
+      }
     }
     .item.danger {
       color: $error-red;
