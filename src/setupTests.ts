@@ -3,6 +3,7 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
+import 'jest-canvas-mock';
 import { TextEncoder, TextDecoder } from 'util';
 import { ReadableStream, WritableStream, TransformStream } from 'stream/web';
 
@@ -15,3 +16,7 @@ Object.assign(globalThis, {
   WritableStream,
   TransformStream,
 });
+
+// App.tsx calls Modal.setAppElement('#root') at module load, which requires
+// the element to exist. index.html provides it in the real app; jsdom needs it here.
+document.body.innerHTML = '<div id="root"></div>';
