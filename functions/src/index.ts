@@ -1,5 +1,7 @@
-import * as functions from 'firebase-functions'
-import * as admin from 'firebase-admin'
+import * as functions from 'firebase-functions/v1'
+import { initializeApp } from 'firebase-admin/app'
+import { getFirestore, FieldValue } from 'firebase-admin/firestore'
+import { getAuth } from 'firebase-admin/auth'
 
 export const INCOMING_FRIEND_REQUESTS = 'incomingFriendRequests'
 export const OUTGOING_FRIEND_REQUESTS = 'outgoingFriendRequests'
@@ -41,8 +43,8 @@ export type WeightGroupType = {
 
 export type CombinedFriendsData = FriendsData & UserProfileDataType
 
-admin.initializeApp()
-const firestore = admin.firestore()
+initializeApp()
+const firestore = getFirestore()
 
 // Friend cloud functions
 type SendFriendRequestEmailType = {
@@ -70,8 +72,8 @@ export const sendFriendRequestEmail = functions.https.onCall(
         )
       }
 
-      const friendData = await admin.auth().getUser(data.friendUID)
-      const currUserData = await admin.auth().getUser(data.currUID)
+      const friendData = await getAuth().getUser(data.friendUID)
+      const currUserData = await getAuth().getUser(data.currUID)
       const currName = currUserData.displayName
       const currProfilePicture = currUserData.photoURL
       const friendEmail = friendData.email
@@ -135,7 +137,7 @@ This email was sent from an automated system. Please do not reply to this email.
 
 You are receiving this email because you have a registered account on PumpTrack. If you believe you received this email in error, please disregard it.`,
       }
-      const mailCollection = admin.firestore().collection('mail')
+      const mailCollection = getFirestore().collection('mail')
       return mailCollection.add({ to, message }).then(res => {
         return 'test'
       })
@@ -163,8 +165,8 @@ export const sendFriendAcceptedEmail = functions.https.onCall(
       )
     }
 
-    const friendData = await admin.auth().getUser(data.friendUID)
-    const currUserData = await admin.auth().getUser(data.currUID)
+    const friendData = await getAuth().getUser(data.friendUID)
+    const currUserData = await getAuth().getUser(data.currUID)
     const currName = currUserData.displayName
     const currProfilePicture = currUserData.photoURL
     const friendEmail = friendData.email
@@ -229,7 +231,7 @@ export const sendFriendAcceptedEmail = functions.https.onCall(
         You are receiving this email because you have a registered account on PumpTrack. If you believe you received this email in error, please disregard it.`,
     }
 
-    const mailCollection = admin.firestore().collection('mail')
+    const mailCollection = getFirestore().collection('mail')
     return mailCollection.add({ to, message }).then(res => {
       return 'test'
     })
@@ -473,7 +475,7 @@ export const removeFriend = functions.https.onCall(async (data, context) => {
   const currUserDocRef = firestore.doc(`userProfileData/${currUID}`)
   currUserDocRef.set(
     {
-      numFriends: admin.firestore.FieldValue.increment(-1),
+      numFriends: FieldValue.increment(-1),
     },
     { merge: true }
   )
@@ -483,7 +485,7 @@ export const removeFriend = functions.https.onCall(async (data, context) => {
   const friendDocRef = firestore.doc(`userProfileData/${friendUID}`)
   friendDocRef.set(
     {
-      numFriends: admin.firestore.FieldValue.increment(-1),
+      numFriends: FieldValue.increment(-1),
     },
     { merge: true }
   )
@@ -552,7 +554,7 @@ export const acceptFriendRequest = functions.https.onCall(
     const currUserDocRef = firestore.doc(`userProfileData/${currUID}`)
     currUserDocRef.set(
       {
-        numFriends: admin.firestore.FieldValue.increment(1),
+        numFriends: FieldValue.increment(1),
       },
       { merge: true }
     )
@@ -569,7 +571,7 @@ export const acceptFriendRequest = functions.https.onCall(
     const friendDocRef = firestore.doc(`userProfileData/${friendUID}`)
     friendDocRef.set(
       {
-        numFriends: admin.firestore.FieldValue.increment(1),
+        numFriends: FieldValue.increment(1),
       },
       { merge: true }
     )
@@ -768,14 +770,14 @@ export const updateTotalWorkoutsAndExercises = functions.https.onCall(
     const numExercises: number = Number(data.numExercises) || 0
 
     firestore.doc(`userProfileData/${uid}`).update({
-      totalWorkouts: admin.firestore.FieldValue.increment(numWorkouts),
-      totalExercises: admin.firestore.FieldValue.increment(numExercises),
+      totalWorkouts: FieldValue.increment(numWorkouts),
+      totalExercises: FieldValue.increment(numExercises),
     })
   }
 )
 
 // export const updateExerciseMaxWeight = functions.https.onCall(async () => {
-//   const usersDataCollection = admin.firestore().collection('usersData')
+//   const usersDataCollection = getFirestore().collection('usersData')
 //   const usersDataDocs = await usersDataCollection.listDocuments()
 
 //   for (const usersDataDoc of usersDataDocs) {
@@ -801,8 +803,8 @@ export const updateTotalWorkoutsAndExercises = functions.https.onCall(
 //   }
 
 //   // firestore.doc(`userProfileData/${uid}`).update({
-//   //   totalWorkouts: admin.firestore.FieldValue.increment(numWorkouts),
-//   //   totalExercises: admin.firestore.FieldValue.increment(numExercises),
+//   //   totalWorkouts: FieldValue.increment(numWorkouts),
+//   //   totalExercises: FieldValue.increment(numExercises),
 //   // })
 // })
 // const calculateMaxWeight = (weights: WeightGroupType[]) => {
