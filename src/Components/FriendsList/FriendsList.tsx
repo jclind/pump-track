@@ -8,7 +8,7 @@ import {
 import { UserProfileDataType } from '../../types'
 import toast from 'react-hot-toast'
 import Skeleton from '@mui/material/Skeleton'
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 import { Link } from 'react-router-dom'
 
 type SuggestedFriendProps = {

@@ -4,7 +4,7 @@ import { AiOutlineQrcode, AiOutlineUser } from 'react-icons/ai'
 
 import { UserProfileDataType } from '../../types'
 import FriendQRModal from '../FriendQRModal/FriendQRModal'
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 import Skeleton from '@mui/material/Skeleton'
 import { useNavigate } from 'react-router-dom'
 
