@@ -109,10 +109,9 @@ const FriendsList = () => {
         }
         setSuggestedLoading(false)
       })
-      .catch(err => {
+      .catch(() => {
         setSuggestedLoading(false)
       })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

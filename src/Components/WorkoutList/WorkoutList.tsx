@@ -133,7 +133,6 @@ const WorkoutList = ({
   workoutList,
   setWorkoutList,
   setLoading,
-  currWorkoutTitle,
 }: WorkoutListProps) => {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<
     DocumentData,

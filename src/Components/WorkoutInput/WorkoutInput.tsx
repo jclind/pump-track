@@ -1,13 +1,6 @@
 import React, { useState } from 'react'
 import './WorkoutInput.scss'
 
-const exerciseList = [
-  'Smith Bench',
-  'Dumbbell Curl',
-  'Barbell Row',
-  'Cable Row',
-]
-
 const WorkoutInput = () => {
   const [workoutTitle, setWorkoutTitle] = useState('')
   const [isFocused, setIsFocused] = useState(false)
