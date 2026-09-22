@@ -4,7 +4,7 @@ import { getMostRecentWorkout } from '../../services/tracker'
 import { WorkoutDataType } from '../../types'
 import { formatDateToString } from '../../util/dateUtil'
 import Skeleton from '@mui/material/Skeleton'
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 
 const LastWorkout = () => {
   const [workout, setWorkout] = useState<WorkoutDataType | null>(null)

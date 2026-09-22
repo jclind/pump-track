@@ -2,7 +2,7 @@ import React from 'react'
 import './ChartSelect.scss'
 import Select from 'react-select'
 import { ExerciseSelectType } from '../../types'
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 
 const customStyles = {
   control: (provided: any, state: any) => ({

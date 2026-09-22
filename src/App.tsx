@@ -25,7 +25,7 @@ import OutgoingRequests from './Components/FriendsPage/OutgoingRequests/Outgoing
 import * as Sentry from '@sentry/react'
 
 Sentry.init({
-  dsn: process.env.REACT_APP_SENTRY_DSN,
+  dsn: import.meta.env.VITE_SENTRY_DSN,
   integrations: [
     new Sentry.BrowserTracing({
       // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled

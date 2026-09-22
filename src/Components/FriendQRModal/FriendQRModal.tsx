@@ -1,7 +1,7 @@
 import React from 'react'
 import Modal from 'react-modal'
 import QRCode from 'react-qr-code'
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 import './FriendQRModal.scss'
 
 const customStyles = {
@@ -53,7 +53,7 @@ const FriendQRModal = ({
             fgColor={styles.secondaryBackground}
             className='qr'
             level='L'
-            bgColor={styles.primary}
+            bgColor={styles.primaryText}
           />
           <div className='text'>Pump track</div>
         </div>
