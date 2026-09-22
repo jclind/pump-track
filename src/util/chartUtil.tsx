@@ -39,6 +39,7 @@ export const getStartOfDayArrayByPeriod = (
   const startOfDayArray: number[] = []
 
   if (timePeriod === 'allTime') {
+    // allTime keeps the array empty; the chart plots over every date in the data
   } else if (timePeriod === 'year') {
     // For 'year', calculate the start of the year and add each day to the array
     const currentYear = currentDate.getFullYear()
