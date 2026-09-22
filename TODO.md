@@ -15,5 +15,5 @@ To turn it on:
 ## Other known follow-ups
 
 - Charts page overhaul. Long overdue as of Sept 2026; the vite migration kept the page as-is on purpose.
-- Bump uuid 9 to 14 (breaking) to clear the last moderate advisory chain in the root app.
+- 7 moderate advisories remain in the root app, all inside the firebase-tools devDependency chain (@opentelemetry/core, csv-parse, stream-json). firebase-tools 15.30.2 is the latest release and none of its upstream deps have shipped fixes yet. Accepted for now: these only run on deploy machines parsing your own project files, nothing ships to the browser. Options when fixes land: bump firebase-tools, or force with npm overrides and re-test deploys.
 - The functions run Node 22 and firebase-admin 14 now. The unfriend path (`FieldValue.increment(-1)`) has not been manually tested since the upgrade.
