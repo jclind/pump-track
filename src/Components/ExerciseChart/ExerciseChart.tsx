@@ -16,7 +16,7 @@ import {
 } from '../../types'
 import 'chartjs-adapter-moment'
 
-import styles from '../../_exports.scss'
+import styles from '../../_exports.module.scss'
 import './ExerciseChart.scss'
 import {
   formatChartData,

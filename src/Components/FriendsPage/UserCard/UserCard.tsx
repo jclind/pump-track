@@ -9,7 +9,7 @@ import {
 } from '../../../services/friends'
 import { TailSpin } from 'react-loader-spinner'
 import Skeleton from '@mui/material/Skeleton'
-import styles from '../../../_exports.scss'
+import styles from '../../../_exports.module.scss'
 import { Link } from 'react-router-dom'
 import { AiOutlineCheck } from 'react-icons/ai'
 
