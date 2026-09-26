@@ -8,6 +8,7 @@ import {
   AiOutlineLineChart,
   AiOutlineUser,
 } from 'react-icons/ai'
+import { User, House, ChartLine } from 'lucide-react'
 
 const Nav = () => {
   const navigate = useNavigate()
@@ -40,7 +41,7 @@ const Nav = () => {
           }`}
           onClick={() => navigate('/')}
         >
-          <AiOutlineHome className='icon' />
+          <House className='icon' />
         </button>
         <button
           className={`btn-no-styles account-btn ${
@@ -48,7 +49,7 @@ const Nav = () => {
           }`}
           onClick={() => navigate(`/user/${username}`)}
         >
-          <AiOutlineUser className='icon' />
+          <User className='icon' />
         </button>
         <button
           className={`btn-no-styles exercise-charts-btn ${
@@ -56,7 +57,7 @@ const Nav = () => {
           }`}
           onClick={() => navigate('/charts')}
         >
-          <AiOutlineLineChart className='icon' />
+          <ChartLine className='icon' />
         </button>
       </div>
       <button className='btn-no-styles logout-btn' onClick={handleLogout}>

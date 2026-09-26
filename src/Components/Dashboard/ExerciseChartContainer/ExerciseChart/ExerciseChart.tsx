@@ -13,20 +13,20 @@ import {
   ExerciseSelectType,
   ExercisesServerDataType,
   TimePeriodType,
-} from '../../types'
+} from '../../../../types'
 import 'chartjs-adapter-moment'
 
-import styles from '../../_exports.scss'
+import styles from '../../../../_exports.scss'
 import './ExerciseChart.scss'
 import {
   formatChartData,
   getChartTimeUnit,
   getStartOfDayArrayByPeriod,
   getStepSize,
-} from '../../util/chartUtil'
+} from '../../../../util/chartUtil'
 import { TailSpin } from 'react-loader-spinner'
 import { AiOutlineLineChart } from 'react-icons/ai'
-import ExercisePR from '../ExercisePR/ExercisePR'
+import ExercisePR from '../../../ExercisePR/ExercisePR'
 
 ChartJS.register(
   TimeScale, //Register timescale instead of category for X axis

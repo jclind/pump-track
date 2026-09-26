@@ -1,19 +1,21 @@
 import React, { useEffect, useState } from 'react'
-import { getUniqueTitles, queryChartExerciseData } from '../../services/tracker'
-
-import './Charts.scss'
-import { stringArrToSelectArr } from '../../util/stringArrToSelectArr'
-import ChartSelect from '../../Components/ChartSelect/ChartSelect'
+import ChartSelect from '../../ChartSelect/ChartSelect'
+import ExerciseChart from './ExerciseChart/ExerciseChart'
+import toast from 'react-hot-toast'
+import './ExerciseChartContainer.scss'
+import {
+  getUniqueTitles,
+  queryChartExerciseData,
+} from '../../../services/tracker'
 import {
   ExerciseSelectType,
-  ExercisesServerDataType,
   TimePeriodType,
-} from '../../types'
-import { convertToTimeNumber } from '../../util/chartUtil'
-import toast from 'react-hot-toast'
-import ExerciseChart from '../../Components/Dashboard/ExerciseChartContainer/ExerciseChart/ExerciseChart'
+  ExercisesServerDataType,
+} from '../../../types'
+import { convertToTimeNumber } from '../../../util/chartUtil'
+import { stringArrToSelectArr } from '../../../util/stringArrToSelectArr'
 
-const Charts = () => {
+const ExerciseChartContainer = () => {
   const [selectedExercise, setSelectedExercise] =
     useState<ExerciseSelectType | null>(null)
   const [exerciseList, setExerciseList] = useState<
@@ -79,4 +81,4 @@ const Charts = () => {
   )
 }
 
-export default Charts
+export default ExerciseChartContainer

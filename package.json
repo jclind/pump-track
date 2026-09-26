@@ -25,6 +25,7 @@
     "firebase-functions": "^4.4.1",
     "firebase-tools": "^12.5.2",
     "lottie-react": "^2.4.0",
+    "lucide-react": "^0.554.0",
     "moment": "^2.29.4",
     "normalize.css": "^8.0.1",
     "react": "^18.2.0",

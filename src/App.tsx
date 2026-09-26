@@ -15,6 +15,7 @@ import loadingAnimationData from './assets/animations/page-loading.json'
 import Home from './Pages/Home'
 import { Route, Routes } from 'react-router-dom'
 import Charts from './Pages/Charts/Charts'
+import Dashboard from './Pages/Dashboard/Dashboard'
 import Layout from './Components/Layout/Layout'
 import Account from './Pages/Account/Account'
 import { PUMP_TRACK_LS_USERNAME } from './services/PUMP_TRACK_LS'
@@ -162,11 +163,19 @@ function App() {
             <Route path='incoming' element={<IncomingRequests />} />
             <Route path='outgoing' element={<OutgoingRequests />} />
           </Route>
-          <Route
+          {/* <Route
             path='/charts'
             element={
               <Layout>
                 <Charts />
+              </Layout>
+            }
+          /> */}
+          <Route
+            path='/dashboard'
+            element={
+              <Layout>
+                <Dashboard />
               </Layout>
             }
           />
