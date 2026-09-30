@@ -64,3 +64,24 @@ changed. All 6 suspected bugs fail when un-skipped; getStepSize's `min - max`
 (chartUtil.tsx:219) checked by eye. The functions tests always call with an
 auth uid equal to the payload's currUID, so they stay valid when the
 functions switch to reading the uid from the auth context.
+
+## Before merging: this branch breaks `npm run build` (found 2026-09-29)
+
+Codex's review caught it and Claude confirmed it. `npm run build` runs
+`tsc && vite build`, and the root tsconfig includes all of `src`, so tsc
+type-checks these test files. On a clean install (root only, the way Netlify
+builds) that gives 80 errors: 33 because `src/glm-functions.test.ts` and
+`src/glm-suspected-bugs.test.ts` import `functions/src/index.ts`, whose
+`firebase-functions` and `firebase-admin` exist only in `functions/node_modules`,
+and 47 strict-mode type errors inside the GLM test files. `main` gives 0.
+`vitest run` still passes, which is why the first check missed it.
+
+Fix here before merging: keep test files out of the build's tsc (an
+`exclude` for `**/*.test.*` plus a separate tsconfig for tests), fix the
+test types, and make the function tests say they need `npm ci` in
+`functions/` first.
+
+Also from that review: the skipped missing-currUsername test's comment is
+wrong about the outcome. Firestore rejects `undefined`, so `addFriend`
+writes the outgoing request and then throws on the incoming one, leaving
+half a request.
