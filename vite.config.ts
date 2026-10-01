@@ -22,5 +22,9 @@ export default defineConfig({
     globals: true, // App.test.tsx uses bare test/expect
     setupFiles: './src/setupTests.ts',
     include: ['src/**/*.{test,spec}.{ts,tsx}'], // keep vitest out of functions/
+    // react-loader-spinner 8 imports styled-components' default export, which
+    // Node's ESM loader hands back as a namespace object. Inlining lets Vite
+    // resolve it the way the production build does.
+    server: { deps: { inline: ['react-loader-spinner'] } },
   },
 })
