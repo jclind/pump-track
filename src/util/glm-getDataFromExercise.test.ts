@@ -44,4 +44,22 @@ describe('getDataFromExercise', () => {
     )
     expect(getDataFromExercise(exercise)).toBe('135lbs 5/225lbs 3x5')
   })
+
+  // A weight equal to an earlier rep count must tag its own group.
+  it('tags each group\'s own weight when numbers repeat across groups', () => {
+    const exercise = makeExercise('curls 30 10/20 10/10 12', 'curls', [
+      { weight: 30, comment: '' },
+      { weight: 20, comment: '' },
+      { weight: 10, comment: '' },
+    ])
+    expect(getDataFromExercise(exercise)).toBe('30lbs 10/20lbs 10/10lbs 12')
+  })
+
+  it('keeps the separators as typed', () => {
+    const exercise = makeExercise('bench 135 5 / 225 3', 'bench', [
+      { weight: 135, comment: '' },
+      { weight: 225, comment: '' },
+    ])
+    expect(getDataFromExercise(exercise)).toBe('135lbs 5 / 225lbs 3')
+  })
 })

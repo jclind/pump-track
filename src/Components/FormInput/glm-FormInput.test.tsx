@@ -119,7 +119,7 @@ describe('FormInput', () => {
 
     const suggested = container.querySelector('.suggested-text')
     expect(suggested).not.toBeNull()
-    const spans = suggested.querySelectorAll('span')
+    const spans = suggested!.querySelectorAll('span')
     expect(spans[0]).toHaveTextContent('ben')
     expect(spans[1]).toHaveTextContent('ch press')
   })

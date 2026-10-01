@@ -60,4 +60,25 @@ describe('ExercisePR', () => {
     const { container } = render(<ExercisePR exerciseName='bench' />)
     expect(container.querySelector('.exercise-pr')).toBeNull()
   })
+
+  // ExerciseChart keeps one ExercisePR mounted and changes its prop.
+  it('refetches when the exercise changes, and ignores the stale reply', async () => {
+    let resolveBench!: (v: { maxWeight: number; workoutDate: number }) => void
+    vi.mocked(getSingleExercisePR).mockImplementation(name =>
+      name === 'bench'
+        ? new Promise(res => (resolveBench = res))
+        : Promise.resolve({ maxWeight: 315, workoutDate: Date.now() })
+    )
+
+    const { rerender } = render(<ExercisePR exerciseName='bench' />)
+    rerender(<ExercisePR exerciseName='squat' />)
+    expect(await screen.findByText('315lbs')).toBeTruthy()
+    expect(getSingleExercisePR).toHaveBeenCalledWith('squat')
+
+    // bench's slow reply lands after the switch and must not overwrite it.
+    resolveBench({ maxWeight: 225, workoutDate: Date.now() })
+    await new Promise(r => setTimeout(r, 0))
+    expect(screen.queryByText('225lbs')).toBeNull()
+    expect(screen.getByText('315lbs')).toBeTruthy()
+  })
 })

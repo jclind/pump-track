@@ -65,7 +65,7 @@ changed. All 6 suspected bugs fail when un-skipped; getStepSize's `min - max`
 auth uid equal to the payload's currUID, so they stay valid when the
 functions switch to reading the uid from the auth context.
 
-## Before merging: this branch breaks `npm run build` (found 2026-09-29)
+## Fixed 2026-10-01: this branch broke `npm run build` (found 2026-09-29)
 
 Codex's review caught it and Claude confirmed it. `npm run build` runs
 `tsc && vite build`, and the root tsconfig includes all of `src`, so tsc
@@ -85,3 +85,67 @@ Also from that review: the skipped missing-currUsername test's comment is
 wrong about the outcome. Firestore rejects `undefined`, so `addFriend`
 writes the outgoing request and then throws on the incoming one, leaving
 half a request.
+
+## Second review by Claude, 2026-10-01
+
+Rebased onto main (6ebe2aa). A review agent checked every test against
+intent, not current output.
+
+**Build fixed.** tsconfig.json excludes test files and setupTests, so
+`tsc && vite build` never sees them and never follows them into functions/.
+`tsconfig.test.json` type-checks the tests (`npm run typecheck:test`, 0
+errors); it follows glm-functions.test.ts into functions/src, so it needs
+`npm ci --prefix functions` first, and so does running that test file.
+setupTests imports `@testing-library/jest-dom/vitest`, which fixed 36 matcher
+type errors. The functions handlers are retyped through a `call()` cast, since
+the onCall mock returns the raw handler.
+
+**Client bugs fixed**, each with a test that failed before:
+
+- Cancelling a friend request from a profile page or the suggestions list
+  sent a username where removeOutgoingRequest needs a UID, so it did nothing.
+  New `cancelFriendRequest(username)` resolves the UID.
+- Accepting a request called `sendFriendRequestEmail`;
+  `sendFriendAcceptedEmail` was never called. This changes which email goes
+  out once deployed.
+- A workout dated today read "Yesterday" from noon on (formatDateToString
+  compared milliseconds, not calendar days).
+- A date in the same month last year showed without the year ("10/1" on
+  2026-10-01).
+- "No Data!" never showed for an exercise with no data in range (the query
+  returns `[]`, which is truthy).
+- The PR badge didn't refetch when the chart switched exercise.
+- getDataFromExercise tagged the first equal number with "lbs", so
+  `curls 30 10/20 10/10 12` displayed wrong.
+- The four client-side suspected bugs: 3/6-month chart ranges fetched 2/3
+  months, getStepSize used `min - max`, the chart plotted the day's biggest
+  total instead of its heaviest lift, and '100lbs' parsed as NaN.
+
+**Test fixes:** Nav's logout test matched 'at:/' as a substring of
+'at:/user/sam' and passed with the navigation deleted; it matches exactly now
+and checks logout ran. FriendStatusButton and UserCard tests now assert the
+argument each service gets (username vs UID). dateUtil got fixed-clock
+boundary tests. The suspected-bugs file is gone: client tests moved into
+their util files, the open functions one into glm-functions.test.ts, which
+also gained the incoming-request branch of addFriend.
+
+**Found, not fixed** (functions/ and data changes need a deploy or a
+migration, so they're Jesse's call):
+
+- Several Firestore writes in functions/src/index.ts aren't awaited, and
+  src/services/friends.ts fires callables without awaiting them and catches
+  every error, so service errors never reach the UI. The components' rollback
+  code only runs when a service rejects, which these never do today.
+- `addFriend` doesn't validate currUsername (skipped test in
+  glm-functions.test.ts).
+- Exercise titles are stored in the case typed but exercise docs are
+  lowercased, so "Bench Press" and "bench press" are separate titles
+  (tracker.ts:629). Fixing it splits existing counts unless the stored titles
+  are migrated.
+- `importWorkouts` never adds to totalExercises (tracker.ts:95).
+- getTitleAndDate reads 'Push 3/15/24' as March 1 with title 'push 5/24'.
+- ExercisePR shows a loading skeleton forever when there's no PR.
+
+Suite: 130 pass, 1 skipped, plus the existing App.test.tsx, which needs a
+Firebase config this worktree doesn't have. `npm run build`, `tsc -p .` and
+`npm run typecheck:test` are clean.

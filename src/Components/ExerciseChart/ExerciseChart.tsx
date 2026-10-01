@@ -138,7 +138,7 @@ const ExerciseChart = ({
           <AiOutlineLineChart className='icon' />
           <h4>Exercise Data Shown Here</h4>
         </div>
-      ) : formattedData ? (
+      ) : formattedData && formattedData.length > 0 ? (
         <Line data={data} options={options} className='chart' />
       ) : (
         <div className='no-chart-data chart'>

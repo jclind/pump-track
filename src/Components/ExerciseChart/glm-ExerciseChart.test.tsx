@@ -67,10 +67,15 @@ describe('ExerciseChart', () => {
     expect(screen.getByText('Data Loading')).toBeTruthy()
   })
 
-  it('reports no data when an exercise is selected but has no data', () => {
+  // Charts stores the query's `data: []` for an exercise with nothing in
+  // range, so an empty array is the real "no data" case.
+  it.each([
+    ['an empty result', []],
+    ['no result', null],
+  ])('reports no data for %s', (_label, exerciseData) => {
     render(
       <ChartHarness
-        exerciseData={null}
+        exerciseData={exerciseData as ExercisesServerDataType[] | null}
         selectedExercise={{ label: 'Bench press', value: 'bench press' }}
       />
     )

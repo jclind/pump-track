@@ -1,8 +1,9 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Nav from './Nav'
+import { logout } from '../../services/auth'
 
 vi.mock('../../services/auth', () => ({
   getUsername: vi.fn(async () => 'sam'),
@@ -15,6 +16,10 @@ const LocationProbe = () => {
 }
 
 // The page buttons are icon-only, so they are addressed by class
+const click = (el: Element | null) => {
+  if (!el) throw new Error('button not found')
+  fireEvent.click(el)
+}
 const renderNav = async () => {
   const result = render(
     <MemoryRouter initialEntries={['/']}>
@@ -43,22 +48,28 @@ describe('Nav', () => {
 
   it('navigates to the charts page', async () => {
     const { container } = await renderNav()
-    fireEvent.click(container.querySelector('.exercise-charts-btn'))
-    expect(screen.getByTestId('location')).toHaveTextContent('at:/charts')
+    click(container.querySelector('.exercise-charts-btn'))
+    expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/charts$/)
   })
 
   it('navigates to the signed-in user page', async () => {
     const { container } = await renderNav()
-    fireEvent.click(container.querySelector('.account-btn'))
+    click(container.querySelector('.account-btn'))
 
-    expect(screen.getByTestId('location')).toHaveTextContent('at:/user/sam')
+    expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/user\/sam$/)
   })
 
   it('logs out back to the home page', async () => {
     const { container } = await renderNav()
-    fireEvent.click(container.querySelector('.account-btn'))
+    click(container.querySelector('.account-btn'))
+
+    expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/user\/sam$/)
 
     fireEvent.click(screen.getByRole('button', { name: /logout/i }))
-    expect(await screen.findByTestId('location')).toHaveTextContent('at:/')
+    // Exact match: 'at:/user/sam' also contains 'at:/'.
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/$/)
+    )
+    expect(logout).toHaveBeenCalledTimes(1)
   })
 })

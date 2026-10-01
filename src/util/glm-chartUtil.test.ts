@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   convertToTimeNumber,
   formatChartData,
@@ -125,10 +125,10 @@ describe('formatChartData', () => {
     const { formattedData, yMin, yMax } = formatChartData(data)
 
     expect(formattedData).toHaveLength(2)
-    const firstPoint = formattedData.find(
+    const firstPoint = formattedData!.find(
       p => p.x && p.x.getTime() === new Date(2026, 5, 10).getTime()
     )
-    expect(firstPoint.y).toBe(200)
+    expect(firstPoint!.y).toBe(200)
     expect(yMin).toBe(95) // floor((100 - 5) / 5) * 5
     expect(yMax).toBe(205) // floor((200 + 5) / 5) * 5
   })
@@ -143,7 +143,7 @@ describe('formatChartData', () => {
 
     const { formattedData } = formatChartData(data)
     expect(formattedData).toHaveLength(1)
-    expect(formattedData[0].y).toBe(135)
+    expect(formattedData![0].y).toBe(135)
   })
 
   it('leaves y bounds undefined when no exercise has weight data', () => {
@@ -178,5 +178,40 @@ describe('getStepSize', () => {
     expect(getStepSize(undefined, 100)).toBe(5)
     expect(getStepSize(100, undefined)).toBe(5)
     expect(getStepSize(undefined, undefined)).toBe(5)
+  })
+})
+
+// Fixed 2026-10-01; these were skipped suspected-bug tests.
+describe('fixed chart bugs', () => {
+  it('convertToTimeNumber goes back 3 and 6 months, matching the x-axis spans', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 8, 28, 12, 0, 0))
+    try {
+      expect(convertToTimeNumber('3-month')).toBe(
+        new Date(2026, 5, 28, 12, 0, 0).getTime()
+      )
+      expect(convertToTimeNumber('6-month')).toBe(
+        new Date(2026, 2, 28, 12, 0, 0).getTime()
+      )
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('getStepSize widens the step as the bounds move apart', () => {
+    expect(getStepSize(100, 120)).toBe(5)
+    expect(getStepSize(100, 160)).toBe(10)
+    expect(getStepSize(100, 210)).toBe(15)
+    expect(getStepSize(100, 300)).toBe(20)
+  })
+
+  // Two bench entries on one day: [100, 200] totals more, [250] lifts more.
+  it('formatChartData plots the heaviest weight of the day, not the biggest total', () => {
+    const day = new Date(2026, 5, 10).getTime()
+    const result = formatChartData([
+      makeExercise([{ weight: 100 }, { weight: 200 }], day),
+      makeExercise([{ weight: 250 }], day),
+    ])
+    expect(result.formattedData?.[0].y).toBe(250)
   })
 })

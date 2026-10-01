@@ -1,8 +1,14 @@
 import React, { useState } from 'react'
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import UserCard from './UserCard'
+import {
+  acceptFriendRequest,
+  removeFriend,
+  removeIncomingRequest,
+  removeOutgoingRequest,
+} from '../../../services/friends'
 import { CombinedFriendsData } from '../../../types'
 
 vi.mock('../../../services/friends', () => ({
@@ -26,6 +32,15 @@ const user: CombinedFriendsData = {
 
 type CardType = 'incoming' | 'friend' | 'outgoing'
 
+const removeFromList = vi.fn()
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+// The service functions take different keys: the request ones resolve a
+// username, the friend-list ones take a UID. The fixture's username ('sam')
+// and UID ('friend-uid') differ, so a mix-up fails.
 const Harness = ({
   type,
   initialFriends = 0,
@@ -33,14 +48,14 @@ const Harness = ({
   type: CardType
   initialFriends?: number
 }) => {
-  const [numIncoming, setNumIncoming] = useState(1)
-  const [numFriends, setNumFriends] = useState(initialFriends)
+  const [numIncoming, setNumIncoming] = useState<number | null>(1)
+  const [numFriends, setNumFriends] = useState<number | null>(initialFriends)
   return (
     <MemoryRouter>
       <UserCard
         user={user}
         type={type}
-        removeFromList={() => {}}
+        removeFromList={removeFromList}
         setNumIncoming={setNumIncoming}
         setNumFriends={setNumFriends}
       />
@@ -64,6 +79,7 @@ describe('UserCard', () => {
 
     expect(await screen.findByText(/Friend Added/)).toBeTruthy()
     expect(await screen.findByTestId('counts')).toHaveTextContent('0:1')
+    expect(acceptFriendRequest).toHaveBeenCalledWith('sam')
   })
 
   it('denies an incoming request and decrements the incoming count', async () => {
@@ -72,6 +88,7 @@ describe('UserCard', () => {
 
     expect(await screen.findByText(/Friend Denied/)).toBeTruthy()
     expect(await screen.findByTestId('counts')).toHaveTextContent('0:0')
+    expect(removeIncomingRequest).toHaveBeenCalledWith('sam')
   })
 
   it('removes a friend only after confirming', async () => {
@@ -84,6 +101,7 @@ describe('UserCard', () => {
     fireEvent.click(screen.getByText('Confirm'))
     expect(await screen.findByText(/Removed/)).toBeTruthy()
     expect(await screen.findByTestId('counts')).toHaveTextContent('1:0')
+    expect(removeFriend).toHaveBeenCalledWith('friend-uid')
   })
 
   it('keeps a friend when the remove confirmation is cancelled', () => {
@@ -94,6 +112,7 @@ describe('UserCard', () => {
 
     expect(screen.getByText('Remove')).toBeTruthy()
     expect(screen.getByTestId('counts')).toHaveTextContent('1:1')
+    expect(removeFriend).not.toHaveBeenCalled()
   })
 
   it('removes an outgoing request on click', async () => {
@@ -101,6 +120,23 @@ describe('UserCard', () => {
     fireEvent.click(screen.getByText('Remove'))
 
     expect(await screen.findByText(/Removed/)).toBeTruthy()
+    expect(removeOutgoingRequest).toHaveBeenCalledWith('friend-uid')
+  })
+
+  it('drops the card from its list by UID 3 seconds after the action', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      render(<Harness type='outgoing' />)
+      fireEvent.click(screen.getByText('Remove'))
+      await waitFor(() => expect(removeOutgoingRequest).toHaveBeenCalled())
+
+      await vi.advanceTimersByTimeAsync(2900)
+      expect(removeFromList).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(200)
+      expect(removeFromList).toHaveBeenCalledWith('friend-uid')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows skeletons instead of actions while loading', () => {

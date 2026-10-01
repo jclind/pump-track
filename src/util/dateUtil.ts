@@ -8,10 +8,12 @@ export const getMonthDay = (input: number | Date): string => {
 
   const inputYear = inputDate.getFullYear()
   const currentYear = currentDate.getFullYear()
+  // The same month last year counts too, or 2025-10-01 would show as "10/1"
+  // on 2026-10-01, the same as today.
   const isMoreThan11Months =
     currentYear - inputYear > 1 ||
     (currentYear - inputYear === 1 &&
-      currentDate.getMonth() > inputDate.getMonth())
+      currentDate.getMonth() >= inputDate.getMonth())
 
   const month = inputDate.getMonth() + 1
   const day = inputDate.getDate()
@@ -32,8 +34,12 @@ export const formatDateToString = (input: Date | number): string => {
     throw new Error('Invalid input date.')
   }
 
+  // Compare calendar days. Workout dates are local midnight, so a raw
+  // millisecond gap made today read "Yesterday" from noon on.
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const timeDifference = Math.round(
-    (currentDate.getTime() - inputDate.getTime()) / oneDay
+    (startOfDay(currentDate) - startOfDay(inputDate)) / oneDay
   )
   if (timeDifference <= 1) {
     // If the date is today or yesterday, return the corresponding string

@@ -56,3 +56,14 @@ describe('parseExercise', () => {
     ])
   })
 })
+
+// Fixed 2026-10-01: the weight's unit was matched with a string, not a regex,
+// so '100lbs' became NaN.
+describe('a weight typed with its unit', () => {
+  it('reads the number and keeps the unit out of the comment', () => {
+    const group = parseExercise('deadlifts 100lbs 3x8').weights[0]
+    expect(group.weight).toBe(100)
+    expect(group.sets).toEqual([8, 8, 8])
+    expect(group.comment).toBe('')
+  })
+})

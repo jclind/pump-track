@@ -16,12 +16,18 @@ const ExercisePR = ({ exerciseName }: ExercisePRProps) => {
   )
 
   useEffect(() => {
+    // Refetch when the chart switches exercise; ignore a reply for the old one.
+    let current = true
+    setCurrPRData(undefined)
     getSingleExercisePR(exerciseName).then(res => {
+      if (!current) return
       if (!res) setCurrPRData({ maxWeight: null, workoutDate: null })
       else setCurrPRData(res)
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    return () => {
+      current = false
+    }
+  }, [exerciseName])
 
   if (currPRData === undefined) return null
 

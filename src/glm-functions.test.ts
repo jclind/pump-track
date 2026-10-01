@@ -105,14 +105,26 @@ import {
   FRIENDS,
   INCOMING_FRIEND_REQUESTS,
   OUTGOING_FRIEND_REQUESTS,
-  acceptFriendRequest,
-  addFriend,
-  getFriendshipStatus,
-  getNumberOfFriends,
-  removeFriend,
-  sendFriendRequestEmail,
-  updateTotalWorkoutsAndExercises,
+  acceptFriendRequest as acceptFriendRequestFn,
+  addFriend as addFriendFn,
+  getFriendshipStatus as getFriendshipStatusFn,
+  getNumberOfFriends as getNumberOfFriendsFn,
+  removeFriend as removeFriendFn,
+  sendFriendRequestEmail as sendFriendRequestEmailFn,
+  updateTotalWorkoutsAndExercises as updateTotalWorkoutsAndExercisesFn,
 } from '../functions/src/index'
+
+// The onCall mock returns the raw (data, context) handler, but the exports
+// are typed as deployed HTTPS functions. Retype them for the tests.
+type Handler = (data: any, context: any) => Promise<any>
+const call = (fn: unknown) => fn as Handler
+const acceptFriendRequest = call(acceptFriendRequestFn)
+const addFriend = call(addFriendFn)
+const getFriendshipStatus = call(getFriendshipStatusFn)
+const getNumberOfFriends = call(getNumberOfFriendsFn)
+const removeFriend = call(removeFriendFn)
+const sendFriendRequestEmail = call(sendFriendRequestEmailFn)
+const updateTotalWorkoutsAndExercises = call(updateTotalWorkoutsAndExercisesFn)
 
 const CURR = 'curr-uid'
 const FRIEND = 'friend-uid'
@@ -233,6 +245,31 @@ describe('addFriend', () => {
     expect(
       docExists(`userProfileData/${FRIEND}/${INCOMING_FRIEND_REQUESTS}/${CURR}`)
     ).toBe(false)
+  })
+
+  it('refuses when the friend already sent the caller a request', async () => {
+    setDoc(`userProfileData/${CURR}/${INCOMING_FRIEND_REQUESTS}/${FRIEND}`, {})
+
+    await expect(addFriend(friendRequestData(), authContext)).rejects.toMatchObject(
+      { code: 'failed-precondition' }
+    )
+    expect(
+      docExists(`userProfileData/${CURR}/${OUTGOING_FRIEND_REQUESTS}/${FRIEND}`)
+    ).toBe(false)
+  })
+
+  // Still open (functions/ is unchanged): currUsername is never validated;
+  // friendUsername is checked twice (functions/src/index.ts:378). Against real
+  // Firestore, which rejects undefined, addFriend writes the caller's outgoing
+  // request and then throws on the friend's incoming one, leaving half a
+  // request. This fake store accepts undefined, so it can't show that part.
+  it.skip('rejects a request that is missing currUsername', async () => {
+    await expect(
+      addFriend(
+        { currUID: CURR, friendUID: FRIEND, friendUsername: 'f' },
+        authContext
+      )
+    ).rejects.toMatchObject({ code: 'invalid-argument' })
   })
 })
 

@@ -101,7 +101,7 @@ export const acceptFriendRequest = async (friendUsername: string) => {
       }).then(() => {
         const sendFriendAcceptedEmail = httpsCallable(
           firebaseFunctions,
-          'sendFriendRequestEmail'
+          'sendFriendAcceptedEmail'
         )
         sendFriendAcceptedEmail({ currUID, friendUID, currUsername })
       })
@@ -330,6 +330,13 @@ export const getOutgoingFriendRequests = async () => {
     console.log(error)
     toast.error(message, { position: 'bottom-center' })
   }
+}
+
+// Profile pages and the suggestions list know the friend by username, but
+// removeOutgoingRequest needs their UID.
+export const cancelFriendRequest = async (friendUsername: string) => {
+  const friendUID = await getUIDFromUsername(friendUsername)
+  return removeOutgoingRequest(friendUID)
 }
 
 export const removeOutgoingRequest = async (friendUID: string) => {

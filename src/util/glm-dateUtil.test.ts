@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   formatDateToMMMDDYYYY,
   formatDateToString,
@@ -76,5 +76,37 @@ describe('formatDateToMMMDDYYYY', () => {
   it('formats as short month, two-digit day, four-digit year', () => {
     expect(formatDateToMMMDDYYYY(new Date(2024, 2, 9))).toBe('Mar 09, 2024')
     expect(formatDateToMMMDDYYYY(new Date(2026, 11, 25))).toBe('Dec 25, 2026')
+  })
+})
+
+// Workout dates with a typed date are local midnight, so these pin the clock
+// to the afternoon and pass midnight inputs.
+describe('calendar-day boundaries', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+  const at = (y: number, m: number, d: number, h = 0) => new Date(y, m - 1, d, h)
+
+  it('calls today\'s midnight "Today" in the afternoon', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(at(2026, 10, 1, 15))
+    expect(formatDateToString(at(2026, 10, 1))).toBe('Today')
+    expect(formatDateToString(at(2026, 9, 30))).toBe('Yesterday')
+    expect(formatDateToString(at(2026, 9, 29))).toBe('Tuesday')
+  })
+
+  it('calls yesterday 23:00 "Yesterday" just after midnight', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(at(2026, 10, 1, 0) )
+    expect(formatDateToString(at(2026, 9, 30, 23))).toBe('Yesterday')
+  })
+
+  it('shows the year for the same month last year', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(at(2026, 10, 1, 12))
+    // Without the year this would read "10/1", today's date.
+    expect(getMonthDay(at(2025, 10, 1))).toBe('10/1/2025')
+    expect(getMonthDay(at(2025, 11, 1))).toBe('11/1')
+    expect(getMonthDay(at(2025, 9, 30))).toBe('9/30/2025')
   })
 })
