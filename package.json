@@ -20,7 +20,7 @@
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
     "react-icons": "^4.10.1",
-    "react-loader-spinner": "^5.3.4",
+    "react-loader-spinner": "^8.0.2",
     "react-modal": "^3.16.1",
     "react-qr-code": "^2.0.12",
     "react-router-dom": "^7.18.4",
