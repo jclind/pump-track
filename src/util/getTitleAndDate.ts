@@ -1,7 +1,7 @@
 export const getTitleAndDate = (
   str: string
 ): { title: string; date: number | null } => {
-  let title = ''
+  let title: string
   let formattedDate: number | null = null
 
   const dateMatch = str.match(

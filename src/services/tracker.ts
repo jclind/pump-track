@@ -92,7 +92,7 @@ export const importWorkouts = async (
       const workoutTitles: string[] = []
 
       let numWorkouts = 0
-      let numExercises = 0
+      const numExercises = 0
 
       workouts.forEach(workout => {
         const workoutID = workout.id
@@ -587,7 +587,7 @@ export const modifyData = async () => {
 
       const exercisesQuerySnapshot = await getDocs(exercisesQ)
 
-      exercisesQuerySnapshot.forEach(doc => {
+      exercisesQuerySnapshot.forEach(() => {
         // deleteDoc(doc.ref)
       })
 
@@ -595,7 +595,7 @@ export const modifyData = async () => {
 
       const workoutsQuerySnapshot = await getDocs(workoutsQ)
 
-      workoutsQuerySnapshot.forEach(doc => {
+      workoutsQuerySnapshot.forEach(() => {
         // deleteDoc(doc.ref)
       })
     } catch (error: any) {
@@ -668,7 +668,7 @@ export const findUniqueWorkoutTitlesFromCollection = async () => {
 
     workoutsQuerySnapshot.forEach(doc => {
       const workoutData = doc.data() as WorkoutDataType
-      let workoutTitle = workoutData.name.toLowerCase().trim()
+      const workoutTitle = workoutData.name.toLowerCase().trim()
       workoutTitles[workoutTitle] = ++workoutTitles[workoutTitle] || 1
     })
 
@@ -689,7 +689,7 @@ export const findUniqueExerciseTitlesFromCollection = async () => {
 
     exerciseQuerySnapshot.forEach(doc => {
       const exerciseData = doc.data() as WorkoutDataType
-      let exerciseTitle = exerciseData.name.toLowerCase().trim()
+      const exerciseTitle = exerciseData.name.toLowerCase().trim()
       titles.push(exerciseTitle)
       // workoutTitles[exerciseTitle] = ++workoutTitles[exerciseTitle] || 1
       // workoutTitle = workoutTitle.replace('day', '').toLowerCase()

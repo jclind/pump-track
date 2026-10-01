@@ -15,7 +15,7 @@ import { BsChevronCompactDown } from 'react-icons/bs'
 import ActionsDropdown from '../ActionsDropdown/ActionsDropdown'
 import { BsTrashFill } from 'react-icons/bs'
 import toast from 'react-hot-toast'
-import TextareaAutosize from '@mui/base/TextareaAutosize'
+import TextareaAutosize from '@mui/material/TextareaAutosize'
 import { TailSpin } from 'react-loader-spinner'
 import { calculateInputWidth } from '../../util/calculateInputWidth'
 
@@ -133,7 +133,6 @@ const WorkoutList = ({
   workoutList,
   setWorkoutList,
   setLoading,
-  currWorkoutTitle,
 }: WorkoutListProps) => {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<
     DocumentData,
