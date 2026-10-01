@@ -17,7 +17,7 @@ import ViewAllExercisesModal from '../ViewAllExercisesModal/ViewAllExercisesModa
 import { TailSpin } from 'react-loader-spinner'
 import { toast } from 'react-hot-toast'
 
-const idRefHash: { [x: string]: React.RefObject<HTMLInputElement> } = {}
+const idRefHash: { [x: string]: React.RefObject<HTMLInputElement | null> } = {}
 
 type ExerciseInputsProps = {
   exercise: ExerciseType
@@ -201,7 +201,7 @@ const ExerciseList = ({
   const [addWorkoutLoading, setAddWorkoutLoading] = useState(false)
 
   const [titleNextFocusRef, setTitleNextFocusRef] =
-    useState<React.RefObject<HTMLInputElement>>()
+    useState<React.RefObject<HTMLInputElement | null>>()
 
   const clearCurrWorkout = async () => {
     await updateCurrentWorkout('', [generateNewExercise()]).catch(

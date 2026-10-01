@@ -16,8 +16,8 @@ type FormInputProps = {
   onEnter?: (nextID: string | null) => void
   onBackspaceEmpty?: () => void
   nextID?: string | null
-  inputRef?: React.RefObject<HTMLInputElement>
-  nextFocusRef?: React.RefObject<HTMLInputElement>
+  inputRef?: React.RefObject<HTMLInputElement | null>
+  nextFocusRef?: React.RefObject<HTMLInputElement | null>
   suggestedText?: string
 }
 
