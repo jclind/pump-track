@@ -10,7 +10,7 @@ import {
 } from './services/auth'
 import { User } from 'firebase/auth'
 import toast, { Toaster } from 'react-hot-toast'
-import Lottie from 'lottie-react'
+import { Lottie } from 'lottie-react'
 import loadingAnimationData from './assets/animations/page-loading.json'
 import Home from './Pages/Home'
 import { Route, Routes } from 'react-router-dom'
@@ -27,12 +27,11 @@ import * as Sentry from '@sentry/react'
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   integrations: [
-    new Sentry.BrowserTracing({
-      // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled
-      tracePropagationTargets: ['localhost', /^https:\/\/yourserver\.io\/api/],
-    }),
-    new Sentry.Replay(),
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration(),
   ],
+  // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled
+  tracePropagationTargets: ['localhost', /^https:\/\/yourserver\.io\/api/],
   // Performance Monitoring
   tracesSampleRate: 1.0, // Capture 100% of the transactions
   // Session Replay
@@ -120,7 +119,7 @@ function App() {
         }`}
       >
         <div className='animation'>
-          <Lottie animationData={loadingAnimationData} />
+          <Lottie src={loadingAnimationData} autoplay loop />
         </div>
       </div>
       <Toaster />
