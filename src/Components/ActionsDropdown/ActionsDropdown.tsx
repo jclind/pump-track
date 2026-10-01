@@ -4,7 +4,7 @@ import { AiOutlineEllipsis } from 'react-icons/ai'
 import './ActionsDropdown.scss'
 
 const useOutsideAlerter = (
-  ref: React.RefObject<HTMLDivElement>,
+  ref: React.RefObject<HTMLDivElement | null>,
   setIsOpen: React.Dispatch<React.SetStateAction<boolean>>
 ) => {
   useEffect(() => {
@@ -29,7 +29,7 @@ const useOutsideAlerter = (
 type ActionsDropdownProps = {
   buttons: {
     text: string
-    icon: JSX.Element
+    icon: React.JSX.Element
     type?: 'default' | 'danger'
     action: () => void
   }[]
