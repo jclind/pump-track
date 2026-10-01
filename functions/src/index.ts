@@ -473,7 +473,7 @@ export const removeFriend = functions.https.onCall(async (data, context) => {
     .doc(`userProfileData/${currUID}/${FRIENDS}/${friendUID}`)
     .delete()
   const currUserDocRef = firestore.doc(`userProfileData/${currUID}`)
-  currUserDocRef.set(
+  await currUserDocRef.set(
     {
       numFriends: FieldValue.increment(-1),
     },
@@ -483,7 +483,7 @@ export const removeFriend = functions.https.onCall(async (data, context) => {
     .doc(`userProfileData/${friendUID}/${FRIENDS}/${currUID}`)
     .delete()
   const friendDocRef = firestore.doc(`userProfileData/${friendUID}`)
-  friendDocRef.set(
+  await friendDocRef.set(
     {
       numFriends: FieldValue.increment(-1),
     },
@@ -552,13 +552,13 @@ export const acceptFriendRequest = functions.https.onCall(
       .doc(`userProfileData/${currUID}/${FRIENDS}/${friendUID}`)
       .set({ ...incomingFriendData })
     const currUserDocRef = firestore.doc(`userProfileData/${currUID}`)
-    currUserDocRef.set(
+    await currUserDocRef.set(
       {
         numFriends: FieldValue.increment(1),
       },
       { merge: true }
     )
-    firestore
+    await firestore
       .doc(
         `userProfileData/${currUID}/${INCOMING_FRIEND_REQUESTS}/${friendUID}`
       )
@@ -569,13 +569,13 @@ export const acceptFriendRequest = functions.https.onCall(
       .doc(`userProfileData/${friendUID}/${FRIENDS}/${currUID}`)
       .set({ ...outgoingFriendData })
     const friendDocRef = firestore.doc(`userProfileData/${friendUID}`)
-    friendDocRef.set(
+    await friendDocRef.set(
       {
         numFriends: FieldValue.increment(1),
       },
       { merge: true }
     )
-    firestore
+    await firestore
       .doc(
         `userProfileData/${friendUID}/${OUTGOING_FRIEND_REQUESTS}/${currUID}`
       )
@@ -664,12 +664,12 @@ export const removeIncomingRequest = functions.https.onCall(
       )
     }
 
-    firestore
+    await firestore
       .doc(
         `userProfileData/${currUID}/${INCOMING_FRIEND_REQUESTS}/${friendUID}`
       )
       .delete()
-    firestore
+    await firestore
       .doc(
         `userProfileData/${friendUID}/${OUTGOING_FRIEND_REQUESTS}/${currUID}`
       )
@@ -694,12 +694,12 @@ export const removeOutgoingRequest = functions.https.onCall(
       )
     }
 
-    firestore
+    await firestore
       .doc(
         `userProfileData/${currUID}/${OUTGOING_FRIEND_REQUESTS}/${friendUID}`
       )
       .delete()
-    firestore
+    await firestore
       .doc(
         `userProfileData/${friendUID}/${INCOMING_FRIEND_REQUESTS}/${currUID}`
       )
