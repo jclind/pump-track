@@ -13,3 +13,17 @@ import 'jest-canvas-mock'
 // App.tsx calls Modal.setAppElement('#root') at module load, which requires
 // the element to exist. index.html provides it in the real app; jsdom needs it here.
 document.body.innerHTML = '<div id="root"></div>'
+
+// lottie-react 3 reads window.matchMedia (prefers-reduced-motion) on mount,
+// and jsdom doesn't implement it.
+window.matchMedia = (query: string) =>
+  ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  }) as MediaQueryList
