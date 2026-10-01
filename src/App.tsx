@@ -10,7 +10,7 @@ import {
 } from './services/auth'
 import { User } from 'firebase/auth'
 import toast, { Toaster } from 'react-hot-toast'
-import Lottie from 'lottie-react'
+import { Lottie } from 'lottie-react'
 import loadingAnimationData from './assets/animations/page-loading.json'
 import Home from './Pages/Home'
 import { Route, Routes } from 'react-router-dom'
@@ -119,7 +119,7 @@ function App() {
         }`}
       >
         <div className='animation'>
-          <Lottie animationData={loadingAnimationData} />
+          <Lottie src={loadingAnimationData} autoplay loop />
         </div>
       </div>
       <Toaster />
