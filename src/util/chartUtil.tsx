@@ -94,6 +94,12 @@ export const getStartOfDayArrayByPeriod = (
   return startOfDayArray
 }
 
+export const getEndOfDay = (timestamp: number): Date => {
+  const endOfDay = new Date(timestamp)
+  endOfDay.setHours(23, 59, 59, 999)
+  return endOfDay
+}
+
 export const roundToNearestMultipleOf5 = (number: number): number => {
   return Math.floor(number / 5) * 5
 }
