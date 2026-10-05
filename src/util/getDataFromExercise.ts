@@ -8,7 +8,11 @@ export const getDataFromExercise = (exercise: ExerciseDataType) => {
   exercise.weights.forEach(weightGroup => {
     const currWeight = weightGroup.weight.toString()
     const currComment = weightGroup.comment.toLowerCase()
-    originalStr = originalStr.replace(currWeight, currWeight + 'lbs')
+    const escapedWeight = currWeight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    originalStr = originalStr.replace(
+      new RegExp(`${escapedWeight}(?![a-z])`, 'i'),
+      currWeight + 'lbs'
+    )
     originalStr = originalStr.replace(currComment, '')
   })
 
