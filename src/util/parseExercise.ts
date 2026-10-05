@@ -49,12 +49,13 @@ export const parseExercise = (
 
   weightGroupsStr.forEach(weightGroup => {
     const weightGroupStrTrimmed = weightGroup.trim()
-    const weight = weightGroupStrTrimmed
-      .substring(0, weightGroupStrTrimmed.indexOf(' '))
-      .replaceAll('[^\\d.]', '')
-      .trim()
+    const rawWeight = weightGroupStrTrimmed.substring(
+      0,
+      weightGroupStrTrimmed.indexOf(' ')
+    )
+    const weight = rawWeight.replace(/[^0-9.]/g, '')
 
-    const repsAndCommentStr = weightGroup.replace(weight, '').trim()
+    const repsAndCommentStr = weightGroup.replace(rawWeight, '').trim()
 
     const commentArr: string[] = []
     const sets: string[] = []
