@@ -21,6 +21,7 @@ import './ExerciseChart.scss'
 import {
   formatChartData,
   getChartTimeUnit,
+  getEndOfDay,
   getStartOfDayArrayByPeriod,
   getStepSize,
 } from '../../util/chartUtil'
@@ -79,7 +80,7 @@ const ExerciseChart = ({
         type: 'time',
         time: getChartTimeUnit(timeSpan),
         min: new Date(dates[0]),
-        max: new Date(dates[dates.length - 1]),
+        max: getEndOfDay(dates[dates.length - 1]),
         offset: true,
         grid: {
           color: styles.tertiaryBackground,
