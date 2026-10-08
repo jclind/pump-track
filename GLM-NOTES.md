@@ -142,10 +142,31 @@ migration, so they're Jesse's call):
   lowercased, so "Bench Press" and "bench press" are separate titles
   (tracker.ts:629). Fixing it splits existing counts unless the stored titles
   are migrated.
-- `importWorkouts` never adds to totalExercises (tracker.ts:95).
-- getTitleAndDate reads 'Push 3/15/24' as March 1 with title 'push 5/24'.
-- ExercisePR shows a loading skeleton forever when there's no PR.
 
 Suite: 130 pass, 1 skipped, plus the existing App.test.tsx, which needs a
 Firebase config this worktree doesn't have. `npm run build`, `tsc -p .` and
 `npm run typecheck:test` are clean.
+
+## Rebased and finished by Claude, 2026-10-08
+
+Rebased onto main (9ce363f). Main had fixed the NaN weights and kept typed
+units ("100kg") on its own, so parseExercise takes main's version, and
+getDataFromExercise keeps this branch's group-by-group tagging plus main's
+rule that a number already followed by a unit gets no "lbs".
+
+Three more from the list above, fixed with tests:
+
+- getTitleAndDate reads M/D/YY. 'Push 3/15/24' used to be March 1 with
+  title 'push 5/24'.
+- ExercisePR shows a skeleton while loading and "None" when there's no PR.
+  It used to render nothing while loading and a skeleton forever with no PR.
+- importWorkouts adds the imported exercises to totalExercises. Untested,
+  since importWorkouts is all Firestore calls.
+
+Left alone on purpose: everything under functions/ and the friend services,
+which the auth fix is changing in its own session, and the title case split,
+which needs a data migration.
+
+Suite: 143 pass, 1 skipped, plus App.test.tsx, which fails on main too
+(no Firebase config). `npm run build`, `npm run typecheck:test` and lint
+(0 errors) are clean.

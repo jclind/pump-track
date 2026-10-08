@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import ExercisePR from './ExercisePR'
 import { getSingleExercisePR } from '../../services/tracker'
 
@@ -40,7 +40,7 @@ describe('ExercisePR', () => {
     )
   })
 
-  it('shows a placeholder instead of a weight when there is no PR', async () => {
+  it('says None when there is no PR', async () => {
     vi.mocked(getSingleExercisePR).mockResolvedValue({
       maxWeight: null,
       workoutDate: null,
@@ -48,17 +48,16 @@ describe('ExercisePR', () => {
 
     const { container } = render(<ExercisePR exerciseName='bench' />)
 
-    await waitFor(() =>
-      expect(container.querySelector('.exercise-pr')).toBeTruthy()
-    )
-    expect(container.querySelector('.weight')).toBeNull()
+    expect(await screen.findByText('None')).toBeTruthy()
+    expect(container.querySelector('.MuiSkeleton-root')).toBeNull()
   })
 
-  it('renders nothing while the PR is still loading', () => {
+  it('shows a skeleton while the PR is still loading', () => {
     vi.mocked(getSingleExercisePR).mockReturnValue(new Promise(() => {}))
 
     const { container } = render(<ExercisePR exerciseName='bench' />)
-    expect(container.querySelector('.exercise-pr')).toBeNull()
+    expect(container.querySelector('.MuiSkeleton-root')).toBeTruthy()
+    expect(container.querySelector('.weight')).toBeNull()
   })
 
   // ExerciseChart keeps one ExercisePR mounted and changes its prop.

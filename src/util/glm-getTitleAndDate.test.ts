@@ -26,4 +26,11 @@ describe('getTitleAndDate', () => {
     expect(title).toBe('stuff 5/2')
     expect(date).toBe(new Date('12/25/2023').getTime())
   })
+
+  // Used to match "3/1" and leave "5/24" in the title.
+  it('reads a two-digit year as 20YY', () => {
+    const { title, date } = getTitleAndDate('Push 3/15/24')
+    expect(title).toBe('push')
+    expect(date).toBe(new Date(2024, 2, 15).getTime())
+  })
 })

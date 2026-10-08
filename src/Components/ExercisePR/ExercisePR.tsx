@@ -29,25 +29,21 @@ const ExercisePR = ({ exerciseName }: ExercisePRProps) => {
     }
   }, [exerciseName])
 
-  if (currPRData === undefined) return null
-
   return (
     <div className='exercise-pr'>
       <div className='label-text'>PR:</div>
-      {!currPRData.maxWeight ? (
+      {currPRData === undefined ? (
         <Skeleton
           sx={{ bgcolor: styles.tertiaryBackground }}
           variant='text'
           width={60}
           height={25}
         />
+      ) : !currPRData.maxWeight ? (
+        <span className='weight'>None</span>
       ) : (
         <>
-          <span className='weight'>
-            {currPRData.maxWeight === null
-              ? 'loading'
-              : `${currPRData.maxWeight}lbs`}
-          </span>
+          <span className='weight'>{`${currPRData.maxWeight}lbs`}</span>
           {currPRData.workoutDate && (
             <span className='pr-date'>
               - {formatDateToString(currPRData.workoutDate)}

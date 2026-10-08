@@ -92,7 +92,7 @@ export const importWorkouts = async (
       const workoutTitles: string[] = []
 
       let numWorkouts = 0
-      const numExercises = 0
+      let numExercises = 0
 
       workouts.forEach(workout => {
         const workoutID = workout.id
@@ -106,6 +106,7 @@ export const importWorkouts = async (
         promises.push(setDoc(workoutsRefDoc, workoutData))
 
         numWorkouts++
+        numExercises += workout.exercises.length
 
         promises.push(
           addExercises(uid, workout.exercises, workoutID, workoutDate)
