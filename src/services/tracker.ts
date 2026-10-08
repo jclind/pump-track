@@ -106,7 +106,8 @@ export const importWorkouts = async (
         promises.push(setDoc(workoutsRefDoc, workoutData))
 
         numWorkouts++
-        numExercises += workout.exercises.length
+        // addExercises skips nameless ones, like a trailing blank line.
+        numExercises += workout.exercises.filter(e => e.name).length
 
         promises.push(
           addExercises(uid, workout.exercises, workoutID, workoutDate)
