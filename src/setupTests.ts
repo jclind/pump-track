@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 
 // jest-canvas-mock calls jest.fn() and jest.isMockFunction() at import time;
 // it predates vitest. vi implements both, so alias it before the import

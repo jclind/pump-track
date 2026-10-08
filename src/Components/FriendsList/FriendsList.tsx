@@ -3,7 +3,7 @@ import './FriendsList.scss'
 import {
   addFriend,
   getSuggestedFriends,
-  removeOutgoingRequest,
+  cancelFriendRequest,
 } from '../../services/friends'
 import { UserProfileDataType } from '../../types'
 import toast from 'react-hot-toast'
@@ -36,7 +36,7 @@ const SuggestedFriend = ({
         })
       } else {
         setRequested(false)
-        removeOutgoingRequest(username).catch((err: any) => {
+        cancelFriendRequest(username).catch((err: any) => {
           toast.error(err, { position: 'bottom-center' })
           setRequested(true)
         })
