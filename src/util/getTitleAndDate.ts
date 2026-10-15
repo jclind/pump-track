@@ -13,8 +13,18 @@ export const getTitleAndDate = (
     const [, month, day, yearStr] = dateMatch
     let year = new Date().getFullYear()
     if (yearStr) year = Number(yearStr.length === 2 ? `20${yearStr}` : yearStr)
-    formattedDate = new Date(year, Number(month) - 1, Number(day)).getTime()
-    title = str.replace(dateMatch[0], '').trim().toLowerCase()
+    const parsed = new Date(year, Number(month) - 1, Number(day))
+    // The Date constructor rolls 12/32 over to 1/1. Treat that as no date.
+    const isRealDate =
+      parsed.getFullYear() === year &&
+      parsed.getMonth() === Number(month) - 1 &&
+      parsed.getDate() === Number(day)
+    if (isRealDate) {
+      formattedDate = parsed.getTime()
+      title = str.replace(dateMatch[0], '').trim().toLowerCase()
+    } else {
+      title = str.trim().toLowerCase()
+    }
   } else {
     title = str.trim().toLowerCase()
   }
