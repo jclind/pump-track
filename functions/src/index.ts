@@ -46,6 +46,34 @@ export type CombinedFriendsData = FriendsData & UserProfileDataType
 initializeApp()
 const firestore = getFirestore()
 
+// Names and usernames come from users, so escape them before they go into
+// email HTML.
+const escapeHtml = (value: string | null | undefined) =>
+  (value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const requireCaller = (
+  context: functions.https.CallableContext,
+  uid: unknown
+) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'only authenticated users can request'
+    )
+  }
+  if (context.auth.uid !== uid) {
+    throw new functions.https.HttpsError(
+      'permission-denied',
+      'uid does not match the signed-in user'
+    )
+  }
+}
+
 // Friend cloud functions
 type SendFriendRequestEmailType = {
   currUID: string
@@ -78,6 +106,15 @@ export const sendFriendRequestEmail = functions.https.onCall(
       const currProfilePicture = currUserData.photoURL
       const friendEmail = friendData.email
       const friendName = friendData.displayName
+      const htmlFriendName = escapeHtml(friendName)
+      const htmlCurrName = escapeHtml(currName)
+      const htmlProfilePicture = escapeHtml(currProfilePicture)
+      const htmlCurrUsername = escapeHtml(data.currUsername)
+      const profileUrl = escapeHtml(
+        `https://pumptrack.netlify.app/user/${encodeURIComponent(
+          data.currUsername ?? ''
+        )}`
+      )
 
       const to = [friendEmail]
       const message = {
@@ -88,15 +125,15 @@ export const sendFriendRequestEmail = functions.https.onCall(
             <td align="center" bgcolor="#17171b" style="padding: 40px;">
                 <img src="https://firebasestorage.googleapis.com/v0/b/workout-tracker-69161.appspot.com/o/PumpTrack-logos_white.png?alt=media&token=7e25e8e4-b95c-4713-ba52-2a1b98f6b956" alt="PumpTrack Logo" width="150" style="display: block; margin: 0 auto;">
                 <h2 style="color: #855ae1; margin-top: 30px;">Friend Request</h2>
-                <p style="margin-top: 20px;">Hello ${friendName},</p>
-                <p style="color: #8e8e8e;">You have received a friend request from ${currName} on PumpTrack.</p>
+                <p style="margin-top: 20px;">Hello ${htmlFriendName},</p>
+                <p style="color: #8e8e8e;">You have received a friend request from ${htmlCurrName} on PumpTrack.</p>
 
                 <!-- Friend Card -->
                 <div style="border: 1px solid #555; padding: 20px; margin-top: 30px; text-align: center;">
-                    <img src="${currProfilePicture}" alt="Friend's Profile Picture" width="80" style="border-radius: 50%;">
-                    <h3 style="color: #855ae1; margin-top: 10px;">${currName}</h3>
-                    <p style="color: #8e8e8e;">@${data.currUsername}</p>
-                    <a href="https://pumptrack.netlify.app/user/${data.currUsername}" style="display: inline-block; background-color: #855ae1; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Request</a>
+                    <img src="${htmlProfilePicture}" alt="Friend's Profile Picture" width="80" style="border-radius: 50%;">
+                    <h3 style="color: #855ae1; margin-top: 10px;">${htmlCurrName}</h3>
+                    <p style="color: #8e8e8e;">@${htmlCurrUsername}</p>
+                    <a href="${profileUrl}" style="display: inline-block; background-color: #855ae1; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Request</a>
                 </div>
                 <!-- End of Friend Card -->
 
@@ -171,6 +208,15 @@ export const sendFriendAcceptedEmail = functions.https.onCall(
     const currProfilePicture = currUserData.photoURL
     const friendEmail = friendData.email
     const friendName = friendData.displayName
+    const htmlFriendName = escapeHtml(friendName)
+    const htmlCurrName = escapeHtml(currName)
+    const htmlProfilePicture = escapeHtml(currProfilePicture)
+    const htmlCurrUsername = escapeHtml(data.currUsername)
+    const profileUrl = escapeHtml(
+      `https://pumptrack.netlify.app/user/${encodeURIComponent(
+        data.currUsername ?? ''
+      )}`
+    )
 
     const to = [friendEmail]
     const message = {
@@ -181,15 +227,15 @@ export const sendFriendAcceptedEmail = functions.https.onCall(
                       <td align="center" bgcolor="#17171b" style="padding: 40px;">
                           <img src="https://firebasestorage.googleapis.com/v0/b/workout-tracker-69161.appspot.com/o/PumpTrack-logos_white.png?alt=media&token=7e25e8e4-b95c-4713-ba52-2a1b98f6b956" alt="PumpTrack Logo" width="150" style="display: block; margin: 0 auto;">
                           <h2 style="color: #855ae1; margin-top: 30px;">Friend Request</h2>
-                          <p style="margin-top: 20px;">Hello ${friendName},</p>
-                          <p style="color: #8e8e8e;">You have received a friend request from ${currName} on PumpTrack.</p>
+                          <p style="margin-top: 20px;">Hello ${htmlFriendName},</p>
+                          <p style="color: #8e8e8e;">You have received a friend request from ${htmlCurrName} on PumpTrack.</p>
 
                           <!-- Friend Card -->
                           <div style="border: 1px solid #555; padding: 20px; margin-top: 30px; text-align: center;">
-                              <img src="${currProfilePicture}" alt="Friend's Profile Picture" width="80" style="border-radius: 50%;">
-                              <h3 style="color: #855ae1; margin-top: 10px;">${currName}</h3>
-                              <p style="color: #8e8e8e;">@${data.currUsername}</p>
-                              <a href="https://pumptrack.netlify.app/user/${data.currUsername}" style="display: inline-block; background-color: #855ae1; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Request</a>
+                              <img src="${htmlProfilePicture}" alt="Friend's Profile Picture" width="80" style="border-radius: 50%;">
+                              <h3 style="color: #855ae1; margin-top: 10px;">${htmlCurrName}</h3>
+                              <p style="color: #8e8e8e;">@${htmlCurrUsername}</p>
+                              <a href="${profileUrl}" style="display: inline-block; background-color: #855ae1; color: #ffffff; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-top: 10px;">Accept Request</a>
                           </div>
                           <!-- End of Friend Card -->
 
@@ -239,12 +285,7 @@ export const sendFriendAcceptedEmail = functions.https.onCall(
 )
 export const getNumberOfFriends = functions.https.onCall(
   async (data, context) => {
-    if (!context.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'only authenticated users can request'
-      )
-    }
+    requireCaller(context, data.uid)
 
     let numFriends = 0
     await firestore
@@ -297,6 +338,7 @@ export const checkIfFriends = functions.https.onCall(async (data, context) => {
       'currUID and friendUID must be provided'
     )
   }
+  requireCaller(context, data.currUID)
 
   return await checkIfDocExistsInUserCollection(
     'friends',
@@ -342,6 +384,7 @@ export const getFriendshipStatus = functions.https.onCall(
         'currUID and friendUID must be provided'
       )
     }
+    requireCaller(context, currUID)
 
     let status: FriendsStatusType
 
@@ -375,12 +418,13 @@ export const addFriend = functions.https.onCall(async (data, context) => {
   const currUsername = data.currUsername
   const friendUsername = data.friendUsername
 
-  if (!friendUID || !friendUsername || !currUID || !friendUsername) {
+  if (!friendUID || !friendUsername || !currUID || !currUsername) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'friendUID, friendUsername, friendUsername and currUID must all be provided'
+      'friendUID, friendUsername, currUID and currUsername must all be provided'
     )
   }
+  requireCaller(context, currUID)
 
   const isFriends = await checkIfDocExistsInUserCollection(
     'friends',
@@ -510,6 +554,7 @@ export const acceptFriendRequest = functions.https.onCall(
         'friendUID, friendUsername, currUID and currUsername must all be provided'
       )
     }
+    requireCaller(context, currUID)
 
     const isFriends = await checkIfDocExistsInUserCollection(
       'friends',
@@ -711,6 +756,12 @@ export const removeOutgoingRequest = functions.https.onCall(
 
 export const getUsersFriendData = functions.https.onCall(
   async (data: { usersFriendList: FriendsData[] }, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'only authenticated users can request'
+      )
+    }
     const usersFriendList: FriendsData[] = data.usersFriendList
     if (!usersFriendList) {
       throw new functions.https.HttpsError(
