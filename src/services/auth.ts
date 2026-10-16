@@ -2,7 +2,6 @@ import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'
 import { auth, db, firebaseFunctions } from './firestore'
 import {
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -28,7 +27,7 @@ export const signupWithGoogle = async () => {
         : new Date().getTime()
       const name = displayName || email?.split('@')[0] || ''
       const username = generateUsername(name, createdAt.toString())
-      await addUsername(uid, username)
+      await addUsername(username)
 
       const userProfileData: UserProfileDataType = {
         createdAt: Number(createdAt),
@@ -57,14 +56,18 @@ export const logout = async () => {
     toast.error(message, { position: 'bottom-center' })
   }
 }
-export const addUsername = async (uid: string, username: string) => {
+// Usernames are written only by the setUsername function, which takes the
+// uid from the caller's sign-in.
+const callSetUsername = (username: string) =>
+  httpsCallable(firebaseFunctions, 'setUsername')({ username })
+
+export const addUsername = async (username: string) => {
   try {
-    const usernameDocRef = doc(db, 'usernames', username)
-    if (await checkUsernameExists(username)) {
+    await callSetUsername(username)
+  } catch (error: any) {
+    if (error?.code === 'functions/already-exists') {
       return false
     }
-    await setDoc(usernameDocRef, { uid })
-  } catch (error: any) {
     const message = error.message || error
     console.log(error)
     toast.error(message, { position: 'bottom-center' })
@@ -84,15 +87,9 @@ export const checkUsernameExists = async (username: string) => {
     toast.error(message, { position: 'bottom-center' })
   }
 }
-export const updateUsername = async (uid: string, username: string) => {
+export const updateUsername = async (username: string) => {
   try {
-    const usernameCollectionRef = collection(db, 'usernames')
-    const q = query(usernameCollectionRef, where('uid', '==', uid))
-    const queryRes = await getDocs(q)
-    queryRes.forEach(doc => {
-      deleteDoc(doc.ref)
-    })
-    await setDoc(doc(usernameCollectionRef, username), { uid })
+    await callSetUsername(username)
   } catch (error: any) {
     const message = error.message || error
     console.log(error)

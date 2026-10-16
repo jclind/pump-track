@@ -42,17 +42,35 @@ const h = vi.hoisted(() => {
         docs.delete(path)
       },
     })
-    return {
-      docs,
-      doc,
-      collection: (path: string) => ({
-        add: async (data: any) => {
-          const id = `auto-id-${docs.size}`
-          docs.set(`${path}/${id}`, data)
-          return { id }
-        },
+    const collection = (path: string) => ({
+      add: async (data: any) => {
+        const id = `auto-id-${docs.size}`
+        docs.set(`${path}/${id}`, data)
+        return { id }
+      },
+      doc: (id: string) => doc(`${path}/${id}`),
+      where: (field: string, _op: '==', value: unknown) => ({
+        get: async () => ({
+          docs: [...docs.entries()]
+            .filter(
+              ([docPath, data]) =>
+                docPath.startsWith(`${path}/`) &&
+                !docPath.slice(path.length + 1).includes('/') &&
+                data?.[field] === value
+            )
+            .map(([docPath]) => ({ ref: doc(docPath) })),
+        }),
       }),
-    }
+    })
+    // Runs the transaction straight against the store. Good enough for
+    // single-caller tests; it doesn't model contention.
+    const runTransaction = async (fn: (transaction: any) => Promise<any>) =>
+      fn({
+        get: (refOrQuery: any) => refOrQuery.get(),
+        set: (ref: any, data: any) => ref.set(data),
+        delete: (ref: any) => ref.delete(),
+      })
+    return { docs, doc, collection, runTransaction }
   }
 
   return { store: createFakeFirestore(), INCREMENT }
@@ -114,6 +132,7 @@ import {
   removeFriend as removeFriendFn,
   sendFriendAcceptedEmail as sendFriendAcceptedEmailFn,
   sendFriendRequestEmail as sendFriendRequestEmailFn,
+  setUsername as setUsernameFn,
   updateTotalWorkoutsAndExercises as updateTotalWorkoutsAndExercisesFn,
 } from '../functions/src/index'
 
@@ -130,6 +149,7 @@ const getUsersFriendData = call(getUsersFriendDataFn)
 const removeFriend = call(removeFriendFn)
 const sendFriendAcceptedEmail = call(sendFriendAcceptedEmailFn)
 const sendFriendRequestEmail = call(sendFriendRequestEmailFn)
+const setUsername = call(setUsernameFn)
 const updateTotalWorkoutsAndExercises = call(updateTotalWorkoutsAndExercisesFn)
 
 const CURR = 'curr-uid'
@@ -500,4 +520,67 @@ describe('friend email html', () => {
       'href="https://pumptrack.netlify.app/user/%3Cb%3Ex%3C%2Fb%3E%22"'
     )
   })
+})
+
+describe('setUsername', () => {
+  it('claims a free username for the caller', async () => {
+    await setUsername({ username: 'new-name' }, authContext)
+    await flush()
+
+    expect(getDocData('usernames/new-name')).toEqual({ uid: CURR })
+  })
+
+  it("releases the caller's old username", async () => {
+    setDoc('usernames/old-name', { uid: CURR })
+    setDoc('usernames/someone-else', { uid: FRIEND })
+
+    await setUsername({ username: 'new-name' }, authContext)
+    await flush()
+
+    expect(docExists('usernames/old-name')).toBe(false)
+    expect(getDocData('usernames/new-name')).toEqual({ uid: CURR })
+    expect(getDocData('usernames/someone-else')).toEqual({ uid: FRIEND })
+  })
+
+  it("refuses a username someone else holds and changes nothing", async () => {
+    setDoc('usernames/taken', { uid: FRIEND })
+    setDoc('usernames/old-name', { uid: CURR })
+
+    await expect(
+      setUsername({ username: 'taken' }, authContext)
+    ).rejects.toMatchObject({ code: 'already-exists' })
+    expect(getDocData('usernames/taken')).toEqual({ uid: FRIEND })
+    expect(getDocData('usernames/old-name')).toEqual({ uid: CURR })
+  })
+
+  it('does nothing when the caller already holds the username', async () => {
+    setDoc('usernames/mine', { uid: CURR })
+
+    await setUsername({ username: 'mine' }, authContext)
+
+    expect(getDocData('usernames/mine')).toEqual({ uid: CURR })
+  })
+
+  it('takes the uid from the sign-in, not the payload', async () => {
+    await setUsername({ username: 'new-name', uid: FRIEND }, authContext)
+    await flush()
+
+    expect(getDocData('usernames/new-name')).toEqual({ uid: CURR })
+  })
+
+  it('rejects a signed-out caller', async () => {
+    await expect(
+      setUsername({ username: 'new-name' }, {})
+    ).rejects.toMatchObject({ code: 'unauthenticated' })
+  })
+
+  it.each([[''], ['a/b'], ['.'], ['..'], ['__x__'], [42], ['x'.repeat(101)]])(
+    'rejects the username %j',
+    async username => {
+      await expect(
+        setUsername({ username }, authContext)
+      ).rejects.toMatchObject({ code: 'invalid-argument' })
+      expect(h.store.docs.size).toBe(0)
+    }
+  )
 })
