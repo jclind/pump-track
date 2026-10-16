@@ -113,8 +113,12 @@ export const getUserData = async (
     return null
   }
 }
+// setUsername refuses names over 100 characters, so cap the name part.
 const generateUsername = (name: string, createdAt: string) => {
-  return name.trim().split(' ').join('').toLowerCase() + createdAt.slice(-7)
+  return (
+    name.trim().split(' ').join('').toLowerCase().slice(0, 50) +
+    createdAt.slice(-7)
+  )
 }
 export const getUsername = async (): Promise<string | undefined> => {
   try {
