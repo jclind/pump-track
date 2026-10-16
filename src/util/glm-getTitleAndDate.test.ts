@@ -33,4 +33,18 @@ describe('getTitleAndDate', () => {
     expect(title).toBe('push')
     expect(date).toBe(new Date(2024, 2, 15).getTime())
   })
+
+  it('treats a date that does not exist as no date', () => {
+    for (const str of ['Push 12/32/2024', 'Push 2/30', 'Push 13/1/2024']) {
+      const { title, date } = getTitleAndDate(str)
+      expect(title).toBe(str.toLowerCase())
+      expect(date).toBeNull()
+    }
+  })
+
+  it('accepts the last day of a leap-year February', () => {
+    expect(getTitleAndDate('Push 2/29/2024').date).toBe(
+      new Date(2024, 1, 29).getTime()
+    )
+  })
 })

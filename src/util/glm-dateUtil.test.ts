@@ -1,12 +1,31 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   formatDateToMMMDDYYYY,
   formatDateToString,
   getMonthDay,
 } from './dateUtil'
 
-const DAY = 24 * 60 * 60 * 1000
-const daysAgo = (n: number) => new Date(Date.now() - n * DAY)
+// Step back by calendar day. Subtracting 24 hours lands on the wrong day when
+// a clock change makes the day 23 or 25 hours long.
+const daysAgo = (n: number) => {
+  const now = new Date()
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - n,
+    now.getHours(),
+    now.getMinutes()
+  )
+}
+
+// Freeze the clock so the tests don't depend on the day they run.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 1, 15))
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('getMonthDay', () => {
   it('formats a recent date as m/d without the year', () => {
