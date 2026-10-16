@@ -107,9 +107,12 @@ import {
   OUTGOING_FRIEND_REQUESTS,
   acceptFriendRequest as acceptFriendRequestFn,
   addFriend as addFriendFn,
+  checkIfFriends as checkIfFriendsFn,
   getFriendshipStatus as getFriendshipStatusFn,
   getNumberOfFriends as getNumberOfFriendsFn,
+  getUsersFriendData as getUsersFriendDataFn,
   removeFriend as removeFriendFn,
+  sendFriendAcceptedEmail as sendFriendAcceptedEmailFn,
   sendFriendRequestEmail as sendFriendRequestEmailFn,
   updateTotalWorkoutsAndExercises as updateTotalWorkoutsAndExercisesFn,
 } from '../functions/src/index'
@@ -120,15 +123,19 @@ type Handler = (data: any, context: any) => Promise<any>
 const call = (fn: unknown) => fn as Handler
 const acceptFriendRequest = call(acceptFriendRequestFn)
 const addFriend = call(addFriendFn)
+const checkIfFriends = call(checkIfFriendsFn)
 const getFriendshipStatus = call(getFriendshipStatusFn)
 const getNumberOfFriends = call(getNumberOfFriendsFn)
+const getUsersFriendData = call(getUsersFriendDataFn)
 const removeFriend = call(removeFriendFn)
+const sendFriendAcceptedEmail = call(sendFriendAcceptedEmailFn)
 const sendFriendRequestEmail = call(sendFriendRequestEmailFn)
 const updateTotalWorkoutsAndExercises = call(updateTotalWorkoutsAndExercisesFn)
 
 const CURR = 'curr-uid'
 const FRIEND = 'friend-uid'
 const authContext = { auth: { uid: CURR } }
+const otherContext = { auth: { uid: 'other-uid' } }
 
 const setDoc = (path: string, data: any) => h.store.doc(path).set(data)
 const getDocData = (path: string) => h.store.docs.get(path)
@@ -258,12 +265,7 @@ describe('addFriend', () => {
     ).toBe(false)
   })
 
-  // Still open (functions/ is unchanged): currUsername is never validated;
-  // friendUsername is checked twice (functions/src/index.ts:378). Against real
-  // Firestore, which rejects undefined, addFriend writes the caller's outgoing
-  // request and then throws on the friend's incoming one, leaving half a
-  // request. This fake store accepts undefined, so it can't show that part.
-  it.skip('rejects a request that is missing currUsername', async () => {
+  it('rejects a request that is missing currUsername', async () => {
     await expect(
       addFriend(
         { currUID: CURR, friendUID: FRIEND, friendUsername: 'f' },
@@ -409,5 +411,93 @@ describe('sendFriendRequestEmail', () => {
     expect(mail.message.subject).toBe('New Friend Request')
     expect(mail.message.html).toContain('display-friend-uid')
     expect(mail.message.html).toContain('@curr-name')
+  })
+})
+
+describe('caller checks', () => {
+  it.each([
+    ['addFriend', () => addFriend(friendRequestData(), otherContext)],
+    [
+      'acceptFriendRequest',
+      () => acceptFriendRequest(friendRequestData(), otherContext),
+    ],
+    [
+      'checkIfFriends',
+      () => checkIfFriends({ currUID: CURR, friendUID: FRIEND }, otherContext),
+    ],
+    [
+      'getFriendshipStatus',
+      () =>
+        getFriendshipStatus({ currUID: CURR, friendUID: FRIEND }, otherContext),
+    ],
+    ['getNumberOfFriends', () => getNumberOfFriends({ uid: CURR }, otherContext)],
+  ])('%s rejects a uid that is not the caller', async (_name, run) => {
+    await expect(run()).rejects.toMatchObject({ code: 'permission-denied' })
+  })
+
+  it('addFriend writes nothing for a uid that is not the caller', async () => {
+    await expect(
+      addFriend(friendRequestData(), otherContext)
+    ).rejects.toBeTruthy()
+    expect(h.store.docs.size).toBe(0)
+  })
+
+  it('acceptFriendRequest writes nothing for a uid that is not the caller', async () => {
+    setDoc(`userProfileData/${CURR}/${INCOMING_FRIEND_REQUESTS}/${FRIEND}`, {})
+
+    await expect(
+      acceptFriendRequest(friendRequestData(), otherContext)
+    ).rejects.toBeTruthy()
+    expect(docExists(`userProfileData/${CURR}/${FRIENDS}/${FRIEND}`)).toBe(
+      false
+    )
+  })
+
+  it('getUsersFriendData rejects a signed-out caller', async () => {
+    await expect(
+      getUsersFriendData({ usersFriendList: [] }, {})
+    ).rejects.toMatchObject({ code: 'unauthenticated' })
+  })
+
+  it('getUsersFriendData still answers a signed-in caller', async () => {
+    setDoc(`userProfileData/${FRIEND}`, { username: 'friend-name' })
+
+    const result = await getUsersFriendData(
+      {
+        usersFriendList: [
+          { friendUID: FRIEND, friendUsername: 'friend-name', date: 1 },
+        ],
+      },
+      authContext
+    )
+    expect(result).toEqual([
+      expect.objectContaining({ friendUID: FRIEND, username: 'friend-name' }),
+    ])
+  })
+})
+
+describe('friend email html', () => {
+  const mailHtml = () => {
+    const mail = [...h.store.docs.entries()].find(([path]) =>
+      path.startsWith('mail/')
+    )
+    return mail?.[1].message.html as string
+  }
+
+  it.each([
+    ['sendFriendRequestEmail', () => sendFriendRequestEmail],
+    ['sendFriendAcceptedEmail', () => sendFriendAcceptedEmail],
+  ])('%s escapes the username', async (_name, fn) => {
+    await fn()(
+      { currUID: CURR, friendUID: FRIEND, currUsername: '<b>x</b>"' },
+      authContext
+    )
+
+    const html = mailHtml()
+    expect(html).not.toContain('<b>x</b>')
+    expect(html).toContain('@&lt;b&gt;x&lt;/b&gt;&quot;')
+    expect(html).toContain(
+      'href="https://pumptrack.netlify.app/user/%3Cb%3Ex%3C%2Fb%3E%22"'
+    )
   })
 })
