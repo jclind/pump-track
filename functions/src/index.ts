@@ -806,6 +806,53 @@ export const updateActivity = functions.https.onCall((data, context) => {
   })
 })
 
+// Claims a username for the caller and releases any username they held
+// before, in one transaction so two callers can't take the same name.
+export const setUsername = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'only authenticated users can request'
+    )
+  }
+  const uid = context.auth.uid
+  const username = data?.username
+  // A Firestore doc id can't contain a slash, be . or .., or match __.*__
+  if (
+    typeof username !== 'string' ||
+    username.length === 0 ||
+    username.length > 100 ||
+    username.includes('/') ||
+    username === '.' ||
+    username === '..' ||
+    /^__.*__$/.test(username)
+  ) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'username is not valid'
+    )
+  }
+
+  const usernamesCollection = firestore.collection('usernames')
+  const newDocRef = usernamesCollection.doc(username)
+
+  await firestore.runTransaction(async transaction => {
+    const newDoc = await transaction.get(newDocRef)
+    const ownedDocs = await transaction.get(
+      usernamesCollection.where('uid', '==', uid)
+    )
+    if (newDoc.exists) {
+      if (newDoc.data()?.uid === uid) return
+      throw new functions.https.HttpsError(
+        'already-exists',
+        'username is taken'
+      )
+    }
+    ownedDocs.docs.forEach(ownedDoc => transaction.delete(ownedDoc.ref))
+    transaction.set(newDocRef, { uid })
+  })
+})
+
 // Workout cloud functions
 export const updateTotalWorkoutsAndExercises = functions.https.onCall(
   (data, context) => {
