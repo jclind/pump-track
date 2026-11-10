@@ -11,6 +11,7 @@ import { toast } from 'react-hot-toast'
 import packageJSON from '../../../package.json'
 
 const version = packageJSON.version
+const build = [__BUILD_COMMIT__, __BUILD_BRANCH__].filter(Boolean).join(' on ')
 
 const customStyles = {
   content: {
@@ -115,7 +116,10 @@ const Footer = ({ setWorkoutList }: FooterProps) => {
       <div className='copyright'>
         © {new Date().getFullYear()} || Made with React.js
       </div>
-      <div className='version'>version {version}</div>
+      <div className='version'>
+        version {version}
+        {build && `, build ${build}`}
+      </div>
       <Modal
         isOpen={isModalOpen}
         // onAfterOpen={afterOpenModal}

@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+// Set by `define` in vite.config.ts
+declare const __BUILD_COMMIT__: string
+declare const __BUILD_BRANCH__: string
+
 interface ImportMetaEnv {
   readonly VITE_FIREBASE_API_KEY: string
   readonly VITE_FIREBASE_AUTH_DOMAIN: string
