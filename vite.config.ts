@@ -1,8 +1,28 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { execSync } from 'node:child_process'
+
+// The footer shows which commit and branch a build came from, so a deploy
+// preview can be told apart from prod. Netlify sets COMMIT_REF and BRANCH;
+// local builds ask git.
+const git = (args: string) => {
+  try {
+    return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return ''
+  }
+}
+const buildCommit = (process.env.COMMIT_REF || git('rev-parse HEAD')).slice(0, 7)
+const buildBranch = process.env.BRANCH || git('rev-parse --abbrev-ref HEAD')
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit),
+    __BUILD_BRANCH__: JSON.stringify(buildBranch),
+  },
   build: {
     outDir: 'build', // matches Netlify publish dir
     target: 'es2020', // browser floor, see vite-migration-plan.md decisions
