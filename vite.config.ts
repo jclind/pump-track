@@ -3,8 +3,9 @@ import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 
 // The footer shows which commit and branch a build came from, so a deploy
-// preview can be told apart from prod. Netlify sets COMMIT_REF and BRANCH;
-// local builds ask git.
+// preview can be told apart from prod. Netlify sets COMMIT_REF, and HEAD to
+// the branch name (BRANCH is pull/<n>/head on a deploy preview); local
+// builds ask git.
 const git = (args: string) => {
   try {
     return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -15,7 +16,7 @@ const git = (args: string) => {
   }
 }
 const buildCommit = (process.env.COMMIT_REF || git('rev-parse HEAD')).slice(0, 7)
-const buildBranch = process.env.BRANCH || git('rev-parse --abbrev-ref HEAD')
+const buildBranch = process.env.HEAD || git('rev-parse --abbrev-ref HEAD')
 
 export default defineConfig({
   plugins: [react()],
