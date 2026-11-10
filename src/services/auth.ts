@@ -14,7 +14,16 @@ import { PUMP_TRACK_LS_USERNAME } from './PUMP_TRACK_LS'
 import toast from 'react-hot-toast'
 import { httpsCallable } from 'firebase/functions'
 
+// Settles when the sign-up in progress has written the username. Signing in
+// fires the auth listener straight away, and setUsername can take seconds on
+// a cold start, so a username lookup waits for this instead of finding none.
+let signupFinished: Promise<void> = Promise.resolve()
+
 export const signupWithGoogle = async () => {
+  let finishSignup = () => {}
+  signupFinished = new Promise(resolve => {
+    finishSignup = resolve
+  })
   try {
     const provider = new GoogleAuthProvider()
     const cred = await signInWithPopup(auth, provider)
@@ -45,6 +54,8 @@ export const signupWithGoogle = async () => {
     const message = error.message || error
     console.log(error)
     toast.error(message, { position: 'bottom-center' })
+  } finally {
+    finishSignup()
   }
 }
 export const logout = async () => {
@@ -122,6 +133,7 @@ const generateUsername = (name: string, createdAt: string) => {
 }
 export const getUsername = async (): Promise<string | undefined> => {
   try {
+    await signupFinished
     const uid = auth?.currentUser?.uid
     if (uid) {
       const localStorageData =
@@ -139,10 +151,12 @@ export const getUsername = async (): Promise<string | undefined> => {
       queryRes.forEach(doc => {
         username = doc.id
       })
-      localStorage.setItem(
-        PUMP_TRACK_LS_USERNAME,
-        JSON.stringify({ uid: username })
-      )
+      if (username) {
+        localStorage.setItem(
+          PUMP_TRACK_LS_USERNAME,
+          JSON.stringify({ [uid]: username })
+        )
+      }
       return username
     }
   } catch (error: any) {

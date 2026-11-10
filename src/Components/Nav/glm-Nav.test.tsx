@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import Nav from './Nav'
-import { logout } from '../../services/auth'
+import { getUsername, logout } from '../../services/auth'
 
 vi.mock('../../services/auth', () => ({
   getUsername: vi.fn(async () => 'sam'),
@@ -57,6 +57,14 @@ describe('Nav', () => {
     click(container.querySelector('.account-btn'))
 
     expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/user\/sam$/)
+  })
+
+  it("doesn't go to /user/ before the username loads", async () => {
+    vi.mocked(getUsername).mockReturnValueOnce(new Promise(() => {}))
+    const { container } = await renderNav()
+    click(container.querySelector('.account-btn'))
+
+    expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/$/)
   })
 
   it('logs out back to the home page', async () => {
