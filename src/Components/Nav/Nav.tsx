@@ -46,6 +46,9 @@ const Nav = () => {
           className={`btn-no-styles account-btn ${
             currPage === 'account' ? 'active' : ''
           }`}
+          // Until the lookup returns, the link would be /user/, which no route
+          // matches, and a refresh there stays blank.
+          disabled={!username}
           onClick={() => navigate(`/user/${username}`)}
         >
           <AiOutlineUser className='icon' />
