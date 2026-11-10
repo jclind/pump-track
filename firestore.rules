@@ -20,8 +20,10 @@ service cloud.firestore {
       	allow read: if request.auth.uid == userID
       }
     }
+    // Writes go through the setUsername function, which uses admin access.
     match /usernames/{username} {
-    	allow read, write
+    	allow read;
+    	allow write: if false;
     }
   }
 }
