@@ -20,7 +20,7 @@ export const convertToTimeNumber = (timePeriod: TimePeriodType): number => {
     timePeriod === '3-month' ||
     timePeriod === '6-month'
   ) {
-    const period = timePeriod === 'month' ? 1 : timePeriod === '3-month' ? 2 : 3
+    const period = timePeriod === 'month' ? 1 : timePeriod === '3-month' ? 3 : 6
     const oneMonthAgo = new Date(currentDate.getTime())
     oneMonthAgo.setMonth(currentDate.getMonth() - period)
     return oneMonthAgo.getTime()
@@ -94,6 +94,12 @@ export const getStartOfDayArrayByPeriod = (
   return startOfDayArray
 }
 
+export const getEndOfDay = (timestamp: number): Date => {
+  const endOfDay = new Date(timestamp)
+  endOfDay.setHours(23, 59, 59, 999)
+  return endOfDay
+}
+
 export const roundToNearestMultipleOf5 = (number: number): number => {
   return Math.floor(number / 5) * 5
 }
@@ -141,13 +147,12 @@ const findExercisesWithLargestWeight = (
     let exerciseWithMaxWeight: ExercisesServerDataType | null = null
 
     exercisesGroup.forEach(exercise => {
-      const totalWeight = exercise.weights.reduce(
-        (acc, weightGroup) => acc + weightGroup.weight,
-        0
+      const heaviest = Math.max(
+        ...exercise.weights.map(weightGroup => weightGroup.weight)
       )
 
-      if (totalWeight > maxWeight) {
-        maxWeight = totalWeight
+      if (heaviest > maxWeight) {
+        maxWeight = heaviest
         exerciseWithMaxWeight = exercise
       }
     })
@@ -216,7 +221,7 @@ export const getStepSize = (
   if (!min || !max) {
     return 5
   }
-  const minMaxDiff = min - max
+  const minMaxDiff = max - min
   const stepSize =
     minMaxDiff < 40 ? 5 : minMaxDiff < 80 ? 10 : minMaxDiff < 130 ? 15 : 20
   return stepSize

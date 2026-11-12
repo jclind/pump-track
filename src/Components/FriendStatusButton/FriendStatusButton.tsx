@@ -4,7 +4,7 @@ import { FriendsStatusType } from '../../types'
 import {
   acceptFriendRequest,
   addFriend,
-  removeOutgoingRequest,
+  cancelFriendRequest,
 } from '../../services/friends'
 import toast from 'react-hot-toast'
 
@@ -36,7 +36,7 @@ const FriendStatusButton = ({
       })
     } else if (friendshipStatus === 'outgoing') {
       setFriendshipStatus('not_friends')
-      removeOutgoingRequest(accountUsername).catch((err: any) => {
+      cancelFriendRequest(accountUsername).catch((err: any) => {
         toast.error(err, { position: 'bottom-center' })
         setFriendshipStatus('outgoing')
       })

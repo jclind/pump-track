@@ -67,6 +67,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "typecheck:test": "tsc -p tsconfig.test.json"
   }
 }

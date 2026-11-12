@@ -63,6 +63,9 @@ function App() {
     const unsubscribe = auth.onAuthStateChanged(userInstance => {
       if (userInstance) {
         getUsername().then(() => {
+          // The lookup can wait on a sign-up for seconds, and the loading
+          // timeout may have signed the user out meanwhile.
+          if (auth.currentUser?.uid !== userInstance.uid) return
           setUser(userInstance)
           updateUserActivity()
         })
