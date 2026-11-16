@@ -61,6 +61,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:emu": "npm --prefix functions run build && firebase emulators:exec --project demo-pump-track --only auth,firestore,functions --ui \"node scripts/seed-emulators.mjs && vite --mode emulators --host 127.0.0.1 --strictPort\"",
     "start": "vite",
     "start-3006": "vite --port 3006",
     "build": "tsc && vite build",

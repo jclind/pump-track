@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getUsername, signupWithGoogle } from './auth'
 import { auth } from './firestore'
+import { signInWithCredential, signInWithPopup } from 'firebase/auth'
 import { PUMP_TRACK_LS_USERNAME } from './PUMP_TRACK_LS'
 
 // Usernames held in the fake usernames collection
@@ -10,6 +11,7 @@ let releaseSetUsername = () => {}
 vi.mock('./firestore', () => ({
   auth: { currentUser: null },
   db: {},
+  emulatorsOn: false,
   firebaseFunctions: {},
 }))
 vi.mock('firebase/auth', () => ({
@@ -25,6 +27,7 @@ vi.mock('firebase/auth', () => ({
     }
     return { user: fakeAuth.currentUser }
   }),
+  signInWithCredential: vi.fn(),
   signOut: vi.fn(),
 }))
 vi.mock('firebase/firestore', () => ({
@@ -84,5 +87,21 @@ describe('getUsername', () => {
     expect(JSON.parse(localStorage.getItem(PUMP_TRACK_LS_USERNAME)!)).toEqual({
       u1: 'samlee1',
     })
+  })
+})
+
+describe('signupWithGoogle with a test account', () => {
+  it('still uses the Google popup when the emulators are off', async () => {
+    const signup = signupWithGoogle({
+      sub: 'google-test-alex',
+      email: 'alex@example.com',
+      name: 'Alex Tester',
+    })
+    await tick()
+    releaseSetUsername()
+    await signup
+
+    expect(signInWithCredential).not.toHaveBeenCalled()
+    expect(signInWithPopup).toHaveBeenCalled()
   })
 })

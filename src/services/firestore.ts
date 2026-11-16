@@ -1,9 +1,9 @@
 import { initializeApp } from 'firebase/app'
 import { getStorage } from 'firebase/storage'
-import { getFirestore } from 'firebase/firestore'
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 import { getAnalytics } from 'firebase/analytics'
-import { getAuth } from 'firebase/auth'
-import { getFunctions } from 'firebase/functions'
+import { connectAuthEmulator, getAuth } from 'firebase/auth'
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -23,4 +23,13 @@ export const firebaseFunctions = getFunctions()
 export const auth = getAuth(app)
 export const storage = getStorage()
 export const db = getFirestore()
-export const analytics = getAnalytics(app)
+
+// `npm run dev:emu` sets this, and nothing else does. The ports match
+// firebase.json.
+export const emulatorsOn = import.meta.env.VITE_USE_EMULATORS === 'true'
+if (emulatorsOn) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+  connectFirestoreEmulator(db, '127.0.0.1', 8085)
+  connectFunctionsEmulator(firebaseFunctions, '127.0.0.1', 5001)
+}
+export const analytics = emulatorsOn ? null : getAnalytics(app)

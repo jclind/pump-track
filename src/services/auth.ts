@@ -1,5 +1,11 @@
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'
-import { auth, db, firebaseFunctions } from './firestore'
+import {
+  GoogleAuthProvider,
+  signInWithCredential,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth'
+import { TestAccount } from './testAccounts'
+import { auth, db, emulatorsOn, firebaseFunctions } from './firestore'
 import {
   collection,
   doc,
@@ -19,14 +25,23 @@ import { httpsCallable } from 'firebase/functions'
 // a cold start, so a username lookup waits for this instead of finding none.
 let signupFinished: Promise<void> = Promise.resolve()
 
-export const signupWithGoogle = async () => {
+// Signs in through Google, or as a test account when the emulators are on.
+// The Auth emulator accepts an unsigned token naming the account.
+const signInWithGoogle = (testAccount?: TestAccount) => {
+  if (testAccount && emulatorsOn) {
+    const token = JSON.stringify({ ...testAccount, email_verified: true })
+    return signInWithCredential(auth, GoogleAuthProvider.credential(token))
+  }
+  return signInWithPopup(auth, new GoogleAuthProvider())
+}
+
+export const signupWithGoogle = async (testAccount?: TestAccount) => {
   let finishSignup = () => {}
   signupFinished = new Promise(resolve => {
     finishSignup = resolve
   })
   try {
-    const provider = new GoogleAuthProvider()
-    const cred = await signInWithPopup(auth, provider)
+    const cred = await signInWithGoogle(testAccount)
     const user = cred.user
 
     if (user.metadata.creationTime === user.metadata.lastSignInTime) {
