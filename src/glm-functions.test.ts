@@ -398,6 +398,19 @@ describe('addFriend', () => {
     expect(mails[0].message.html).not.toContain('client-curr-name')
   })
 
+  it('sends one request email when a request is sent, cancelled and sent again', async () => {
+    seedProfiles()
+
+    await addFriend(friendRequestData(), authContext)
+    await removeOutgoingRequest({ currUID: CURR, friendUID: FRIEND }, authContext)
+    await addFriend(friendRequestData(), authContext)
+
+    expect(mailDocs()).toHaveLength(1)
+    expect(
+      docExists(`userProfileData/${FRIEND}/${INCOMING_FRIEND_REQUESTS}/${CURR}`)
+    ).toBe(true)
+  })
+
   it('skips the email when the friend has no email address', async () => {
     seedProfiles()
     h.noEmail.add(FRIEND)

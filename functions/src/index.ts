@@ -41,6 +41,7 @@ const SUGGESTED_FRIENDS = 6
 const SUGGESTED_PAGE_SIZE = 20
 const SUGGESTED_MAX_SCANNED = 60
 const MAX_COUNT_CHANGE = 1000
+const REQUEST_EMAIL_GAP_MS = 24 * 60 * 60 * 1000
 
 // Names and usernames come from users, so escape them before they go into
 // email HTML.
@@ -120,6 +121,10 @@ const rejectSelf = (currUID: string, friendUID: string) => {
 const profileRef = (uid: string) => firestore.doc(`userProfileData/${uid}`)
 const relationRef = (uid: string, collection: string, otherUID: string) =>
   firestore.doc(`userProfileData/${uid}/${collection}/${otherUID}`)
+// When currUID last had a request email sent to friendUID. No rule matches
+// this collection, so only the functions can read or write it.
+const requestEmailLogRef = (currUID: string, friendUID: string) =>
+  firestore.doc(`friendRequestEmailLog/${currUID}_${friendUID}`)
 
 const publicProfile = (
   data: FirebaseFirestore.DocumentData | undefined
@@ -353,12 +358,16 @@ export const addFriend = functions.https.onCall(async (data, context) => {
   const outgoingRef = relationRef(currUID, OUTGOING_FRIEND_REQUESTS, friendUID)
   const incomingRef = relationRef(friendUID, INCOMING_FRIEND_REQUESTS, currUID)
 
-  const currUsername = await firestore.runTransaction(async transaction => {
-    const [currProfile, friendProfile, ...relations] = await transaction.getAll(
-      profileRef(currUID),
-      profileRef(friendUID),
-      ...relationRefs(currUID, friendUID)
-    )
+  const emailLogRef = requestEmailLogRef(currUID, friendUID)
+
+  const result = await firestore.runTransaction(async transaction => {
+    const [currProfile, friendProfile, emailLog, ...relations] =
+      await transaction.getAll(
+        profileRef(currUID),
+        profileRef(friendUID),
+        emailLogRef,
+        ...relationRefs(currUID, friendUID)
+      )
     if (!friendProfile.exists) {
       throw new functions.https.HttpsError('not-found', 'user does not exist')
     }
@@ -402,10 +411,19 @@ export const addFriend = functions.https.onCall(async (data, context) => {
     }
     transaction.set(outgoingRef, outgoing)
     transaction.set(incomingRef, incoming)
-    return currName
+
+    // Sending, cancelling and sending again would email the same person
+    // every time, so one request email per pair per day.
+    const lastSent = emailLog.data()?.sentAt
+    const shouldEmail =
+      typeof lastSent !== 'number' || date - lastSent >= REQUEST_EMAIL_GAP_MS
+    if (shouldEmail) transaction.set(emailLogRef, { sentAt: date })
+    return { currName, shouldEmail }
   })
 
-  await sendFriendEmail('request', currUID, friendUID, currUsername)
+  if (result.shouldEmail) {
+    await sendFriendEmail('request', currUID, friendUID, result.currName)
+  }
 })
 
 export const removeFriend = functions.https.onCall(async (data, context) => {
