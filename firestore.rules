@@ -10,14 +10,19 @@ service cloud.firestore {
     }
     match /userProfileData/{userID} {
     	allow read
+      // Sign-up writes the new user's profile from the client, after
+      // setUsername has claimed the name. Later changes go through functions.
+      allow create: if request.auth.uid == userID
+        && get(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == userID
       match /incomingFriendRequests/{friendUID} {
       	allow read: if request.auth.uid == userID
       }
       match /outgoingFriendRequests/{friendUID} {
       	allow read: if request.auth.uid == userID
       }
+      // Profiles show other users' friend counts, counted on the client.
       match /friends/{friendUID} {
-      	allow read: if request.auth.uid == userID
+      	allow read
       }
     }
     // Writes go through the setUsername function, which uses admin access.
