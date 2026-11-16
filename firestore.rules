@@ -3,26 +3,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /usersData/{userID} {
-    	allow read, write: if request.auth.uid == userID
+    	allow read, write: if request.auth.uid == userID;
       match /{document=**} {
      	 allow read, write: if request.auth.uid == userID;
     	}
     }
     match /userProfileData/{userID} {
-    	allow read
+    	allow read: if request.auth != null;
       // Sign-up writes the new user's profile from the client, after
       // setUsername has claimed the name. Later changes go through functions.
-      allow create: if request.auth.uid == userID
-        && get(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == userID
+      allow create: if request.auth != null
+        && request.auth.uid == userID
+        && isNewProfile(request.resource.data)
+        && get(/databases/$(database)/documents/usernames/$(request.resource.data.username)).data.uid == userID;
       match /incomingFriendRequests/{friendUID} {
-      	allow read: if request.auth.uid == userID
+      	allow read: if request.auth.uid == userID;
       }
       match /outgoingFriendRequests/{friendUID} {
-      	allow read: if request.auth.uid == userID
+      	allow read: if request.auth.uid == userID;
       }
       // Profiles show other users' friend counts, counted on the client.
       match /friends/{friendUID} {
-      	allow read
+      	allow read: if request.auth != null;
       }
     }
     // Writes go through the setUsername function, which uses admin access.
@@ -30,5 +32,18 @@ service cloud.firestore {
     	allow read;
     	allow write: if false;
     }
+  }
+
+  // Matches what signupWithGoogle in src/services/auth.ts writes.
+  function isNewProfile(data) {
+    return data.keys().hasOnly(['createdAt', 'displayName', 'photoUrl', 'username', 'totalWorkouts', 'totalExercises', 'lastActive'])
+      && data.keys().hasAll(['createdAt', 'displayName', 'photoUrl', 'username', 'totalWorkouts', 'totalExercises'])
+      && data.createdAt is number
+      && data.displayName is string
+      && data.photoUrl is string
+      && data.username is string
+      && data.totalWorkouts == 0
+      && data.totalExercises == 0
+      && (!('lastActive' in data) || data.lastActive is number);
   }
 }
