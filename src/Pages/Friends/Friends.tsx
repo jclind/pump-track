@@ -33,7 +33,7 @@ const Friends = () => {
 
   useEffect(() => {
     getUsername().then(res => setCurrUsername(res || null))
-  })
+  }, [])
   useEffect(() => {
     if (currUsername) {
       if (!location.pathname.includes(`/user/${currUsername}/friends`)) {

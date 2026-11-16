@@ -8,6 +8,7 @@ import {
   cancelFriendRequest,
 } from '../../services/friends'
 import { FriendsStatusType } from '../../types'
+import toast from 'react-hot-toast'
 
 vi.mock('../../services/friends', () => ({
   addFriend: vi.fn(async () => {}),
@@ -59,6 +60,28 @@ describe('FriendStatusButton', () => {
     fireEvent.click(screen.getByRole('button'))
     await waitFor(() =>
       expect(screen.getByRole('button')).toHaveTextContent('requested')
+    )
+  })
+
+  it('rolls back to add friend when the request fails', async () => {
+    vi.mocked(addFriend).mockRejectedValueOnce(new Error('offline'))
+    render(<StatusHarness initial='not_friends' />)
+
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() =>
+      expect(screen.getByRole('button')).toHaveTextContent('add friend')
+    )
+    // A string, since react-hot-toast can't render an Error object
+    expect(toast.error).toHaveBeenCalledWith('offline', expect.anything())
+  })
+
+  it('rolls back to accept request when accepting fails', async () => {
+    vi.mocked(acceptFriendRequest).mockRejectedValueOnce(new Error('offline'))
+    render(<StatusHarness initial='incoming' />)
+
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() =>
+      expect(screen.getByRole('button')).toHaveTextContent('accept request')
     )
   })
 

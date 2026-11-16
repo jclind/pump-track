@@ -31,13 +31,17 @@ const SuggestedFriend = ({
       if (!requested) {
         setRequested(true)
         addFriend(username).catch((err: any) => {
-          toast.error(err, { position: 'bottom-center' })
+          toast.error(err?.message || String(err), {
+            position: 'bottom-center',
+          })
           setRequested(false)
         })
       } else {
         setRequested(false)
         cancelFriendRequest(username).catch((err: any) => {
-          toast.error(err, { position: 'bottom-center' })
+          toast.error(err?.message || String(err), {
+            position: 'bottom-center',
+          })
           setRequested(true)
         })
       }

@@ -10,6 +10,7 @@ import {
   removeOutgoingRequest,
 } from '../../../services/friends'
 import { CombinedFriendsData } from '../../../types'
+import toast from 'react-hot-toast'
 
 vi.mock('../../../services/friends', () => ({
   removeIncomingRequest: vi.fn(async () => {}),
@@ -17,6 +18,7 @@ vi.mock('../../../services/friends', () => ({
   removeFriend: vi.fn(async () => {}),
   removeOutgoingRequest: vi.fn(async () => {}),
 }))
+vi.mock('react-hot-toast', () => ({ default: { error: vi.fn() } }))
 
 const user: CombinedFriendsData = {
   friendUID: 'friend-uid',
@@ -137,6 +139,50 @@ describe('UserCard', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('keeps an incoming request when accepting fails', async () => {
+    vi.mocked(acceptFriendRequest).mockRejectedValueOnce(new Error('offline'))
+    render(<Harness type='incoming' />)
+    fireEvent.click(screen.getByText('Accept'))
+
+    expect(await screen.findByText('Accept')).toBeEnabled()
+    expect(screen.queryByText(/Friend Added/)).toBeNull()
+    expect(screen.getByTestId('counts')).toHaveTextContent('1:0')
+    expect(toast.error).toHaveBeenCalledWith('offline', expect.anything())
+    expect(removeFromList).not.toHaveBeenCalled()
+  })
+
+  it('keeps an incoming request when denying fails', async () => {
+    vi.mocked(removeIncomingRequest).mockRejectedValueOnce(new Error('offline'))
+    render(<Harness type='incoming' />)
+    fireEvent.click(screen.getByText('Deny'))
+
+    expect(await screen.findByText('Deny')).toBeEnabled()
+    expect(screen.queryByText(/Friend Denied/)).toBeNull()
+    expect(screen.getByTestId('counts')).toHaveTextContent('1:0')
+  })
+
+  it('keeps a friend when removing fails', async () => {
+    vi.mocked(removeFriend).mockRejectedValueOnce(new Error('offline'))
+    render(<Harness type='friend' initialFriends={1} />)
+    fireEvent.click(screen.getByText('Remove'))
+    fireEvent.click(screen.getByText('Confirm'))
+
+    expect(await screen.findByText('Confirm')).toBeEnabled()
+    expect(screen.queryByText(/Removed/)).toBeNull()
+    expect(screen.getByTestId('counts')).toHaveTextContent('1:1')
+  })
+
+  it('keeps an outgoing request when removing fails', async () => {
+    vi.mocked(removeOutgoingRequest).mockRejectedValueOnce(
+      new Error('offline')
+    )
+    render(<Harness type='outgoing' />)
+    fireEvent.click(screen.getByText('Remove'))
+
+    expect(await screen.findByText('Remove')).toBeEnabled()
+    expect(screen.queryByText(/Removed/)).toBeNull()
   })
 
   it('shows skeletons instead of actions while loading', () => {

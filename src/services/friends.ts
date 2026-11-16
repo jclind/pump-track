@@ -13,13 +13,25 @@ import {
 import { getUIDFromUsername, getUsername } from './auth'
 import { auth, db, firebaseFunctions } from './firestore'
 import { CombinedFriendsData, FriendsData, UserProfileDataType } from '../types'
-import { toast } from 'react-hot-toast'
+import toast from 'react-hot-toast'
 import { httpsCallable } from 'firebase/functions'
 import {
   FRIENDS,
   INCOMING_FRIEND_REQUESTS,
   OUTGOING_FRIEND_REQUESTS,
 } from '../assets/globalVars/userProfileCollections'
+
+const NOT_SIGNED_IN = 'You need to be signed in to do that.'
+const USER_NOT_FOUND = "Couldn't find that user."
+
+const callFunction = (name: string, data: object) =>
+  httpsCallable(firebaseFunctions, name)(data)
+
+const reportError = (error: unknown) => {
+  console.log(error)
+  const message = (error as { message?: string } | null)?.message
+  toast.error(message || String(error), { position: 'bottom-center' })
+}
 
 export const getFriendshipStatus = async (friendUsername: string) => {
   const currUID = auth?.currentUser?.uid
@@ -43,99 +55,53 @@ export const getFriendshipStatus = async (friendUsername: string) => {
     return undefined
   }
 }
+// The friend actions below throw on failure, so the buttons that call them
+// can undo their optimistic state. The functions send any emails themselves.
 export const addFriend = async (friendUsername: string) => {
   const uid = auth?.currentUser?.uid
   const currUsername = await getUsername()
-  const friendUID: string = await getUIDFromUsername(friendUsername)
-  if (uid && friendUID && currUsername) {
-    try {
-      const cloudAddFriend = httpsCallable(firebaseFunctions, 'addFriend')
-      await cloudAddFriend({
-        currUID: uid,
-        friendUID,
-        currUsername,
-        friendUsername,
-      })
-      const sendFriendMail = httpsCallable(
-        firebaseFunctions,
-        'sendFriendRequestEmail'
-      )
-      sendFriendMail({ currUID: uid, friendUID, currUsername })
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
-  }
+  const friendUID = await getUIDFromUsername(friendUsername)
+  if (!uid || !currUsername) throw new Error(NOT_SIGNED_IN)
+  if (!friendUID) throw new Error(USER_NOT_FOUND)
+  await callFunction('addFriend', {
+    currUID: uid,
+    friendUID,
+    currUsername,
+    friendUsername,
+  })
 }
 export const removeFriend = async (friendUID: string) => {
-  try {
-    const uid = auth?.currentUser?.uid
-    if (uid) {
-      const cloudRemoveFriend = httpsCallable(firebaseFunctions, 'removeFriend')
-      cloudRemoveFriend({ currUID: uid, friendUID })
-      await new Promise(resolve => setTimeout(resolve, 2000))
-    }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
-  }
+  const uid = auth?.currentUser?.uid
+  if (!uid) throw new Error(NOT_SIGNED_IN)
+  await callFunction('removeFriend', { currUID: uid, friendUID })
 }
 export const acceptFriendRequest = async (friendUsername: string) => {
   const currUID = auth?.currentUser?.uid
   const currUsername = await getUsername()
   const friendUID = await getUIDFromUsername(friendUsername)
-
-  if (currUID && friendUID && currUsername) {
-    try {
-      const cloudAcceptFriendRequest = httpsCallable(
-        firebaseFunctions,
-        'acceptFriendRequest'
-      )
-      cloudAcceptFriendRequest({
-        currUID,
-        currUsername,
-        friendUID,
-        friendUsername,
-      }).then(() => {
-        const sendFriendAcceptedEmail = httpsCallable(
-          firebaseFunctions,
-          'sendFriendAcceptedEmail'
-        )
-        sendFriendAcceptedEmail({ currUID, friendUID, currUsername })
-      })
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
-  }
+  if (!currUID || !currUsername) throw new Error(NOT_SIGNED_IN)
+  if (!friendUID) throw new Error(USER_NOT_FOUND)
+  await callFunction('acceptFriendRequest', {
+    currUID,
+    currUsername,
+    friendUID,
+    friendUsername,
+  })
 }
 export const removeIncomingRequest = async (friendUsername: string) => {
-  try {
-    const uid = auth?.currentUser?.uid
-    const friendUID = await getUIDFromUsername(friendUsername)
-    if (uid && friendUID) {
-      const cloudRemoveIncomingRequest = httpsCallable(
-        firebaseFunctions,
-        'removeIncomingRequest'
-      )
-      cloudRemoveIncomingRequest({ currUID: uid, friendUID })
-      await new Promise(resolve => setTimeout(resolve, 2000))
-    }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
-  }
+  const uid = auth?.currentUser?.uid
+  const friendUID = await getUIDFromUsername(friendUsername)
+  if (!uid) throw new Error(NOT_SIGNED_IN)
+  if (!friendUID) throw new Error(USER_NOT_FOUND)
+  await callFunction('removeIncomingRequest', { currUID: uid, friendUID })
 }
 
 const getListFromFriendsCollection = async (
   uid: string,
   collectionName: string,
   limitNum: number,
-  lastDoc: QueryDocumentSnapshot<DocumentData, DocumentData> | null = null
+  lastDoc: QueryDocumentSnapshot<DocumentData, DocumentData> | null = null,
+  { countFriends = false } = {}
 ): Promise<
   | {
       friends: FriendsData[]
@@ -153,8 +119,7 @@ const getListFromFriendsCollection = async (
       q = query(q, startAfter(lastDoc))
     }
     const userFriendsSnapshot = await getDocs(q)
-    const username = await getUsername()
-    const numFriends = (await getNumberOfFriends(username)) || 0
+    const numFriends = countFriends ? await countFriendsOf(uid) : 0
     const friends: FriendsData[] = []
     const newLastDoc =
       userFriendsSnapshot.docs[userFriendsSnapshot.docs.length - 1]
@@ -167,10 +132,8 @@ const getListFromFriendsCollection = async (
       numFriends,
       newLastDoc,
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 const getAndCombineFriendsData = async (
@@ -213,7 +176,8 @@ export const getFriends = async <B extends boolean | undefined>(
         uid,
         FRIENDS,
         10,
-        lastDoc
+        lastDoc,
+        { countFriends: true }
       )
       if (!friendsListRes) {
         throw new Error('Something went wrong')
@@ -238,13 +202,17 @@ export const getFriends = async <B extends boolean | undefined>(
         return returnData
       }
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 
   return { friendsData: [], lastDoc: null, numFriends: 0 }
+}
+const countFriendsOf = async (uid: string) => {
+  const userProfileDataRef = doc(db, 'userProfileData', uid)
+  const friendsCollection = collection(userProfileDataRef, `${FRIENDS}`)
+  const totalResultsSnapshot = await getCountFromServer(friendsCollection)
+  return totalResultsSnapshot.data().count
 }
 export const getNumberOfFriends = async (username: string | null = null) => {
   try {
@@ -252,16 +220,10 @@ export const getNumberOfFriends = async (username: string | null = null) => {
       ? await getUIDFromUsername(username)
       : auth?.currentUser?.uid
     if (uid) {
-      const userProfileDataRef = doc(db, 'userProfileData', uid)
-      const friendsCollection = collection(userProfileDataRef, `${FRIENDS}`)
-      const totalResultsSnapshot = await getCountFromServer(friendsCollection)
-
-      return totalResultsSnapshot.data().count
+      return await countFriendsOf(uid)
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 export const getSuggestedFriends = async () => {
@@ -277,10 +239,8 @@ export const getSuggestedFriends = async () => {
         suggestedFriendsRes.data as UserProfileDataType[]
       return suggestedFriendsData
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 export const getIncomingFriendRequests = async () => {
@@ -301,10 +261,8 @@ export const getIncomingFriendRequests = async () => {
 
       return combinedUsersData as CombinedFriendsData[]
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 export const getOutgoingFriendRequests = async () => {
@@ -325,10 +283,8 @@ export const getOutgoingFriendRequests = async () => {
 
       return combinedUsersData as CombinedFriendsData[]
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 
@@ -340,21 +296,10 @@ export const cancelFriendRequest = async (friendUsername: string) => {
 }
 
 export const removeOutgoingRequest = async (friendUID: string) => {
-  try {
-    const uid = auth?.currentUser?.uid
-    if (uid && friendUID) {
-      const cloudRemoveOutgoingRequest = httpsCallable(
-        firebaseFunctions,
-        'removeOutgoingRequest'
-      )
-      cloudRemoveOutgoingRequest({ currUID: uid, friendUID })
-      await new Promise(resolve => setTimeout(resolve, 2000))
-    }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
-  }
+  const uid = auth?.currentUser?.uid
+  if (!uid) throw new Error(NOT_SIGNED_IN)
+  if (!friendUID) throw new Error(USER_NOT_FOUND)
+  await callFunction('removeOutgoingRequest', { currUID: uid, friendUID })
 }
 export const getNumIncoming = async () => {
   try {
@@ -371,9 +316,7 @@ export const getNumIncoming = async () => {
       const totalResults = totalResultsSnapshot.data().count
       return totalResults
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }

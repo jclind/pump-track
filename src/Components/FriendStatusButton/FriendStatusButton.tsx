@@ -31,19 +31,25 @@ const FriendStatusButton = ({
     if (friendshipStatus === 'not_friends') {
       setFriendshipStatus('outgoing')
       addFriend(accountUsername).catch((err: any) => {
-        toast.error(err, { position: 'bottom-center' })
+        toast.error(err?.message || String(err), {
+          position: 'bottom-center',
+        })
         setFriendshipStatus('not_friends')
       })
     } else if (friendshipStatus === 'outgoing') {
       setFriendshipStatus('not_friends')
       cancelFriendRequest(accountUsername).catch((err: any) => {
-        toast.error(err, { position: 'bottom-center' })
+        toast.error(err?.message || String(err), {
+          position: 'bottom-center',
+        })
         setFriendshipStatus('outgoing')
       })
     } else if (friendshipStatus === 'incoming') {
       setFriendshipStatus('friends')
       acceptFriendRequest(accountUsername).catch((err: any) => {
-        toast.error(err, { position: 'bottom-center' })
+        toast.error(err?.message || String(err), {
+          position: 'bottom-center',
+        })
         setFriendshipStatus('incoming')
       })
     }
