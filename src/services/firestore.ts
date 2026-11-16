@@ -1,6 +1,10 @@
 import { initializeApp } from 'firebase/app'
-import { getStorage } from 'firebase/storage'
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
+import {
+  connectFirestoreEmulator,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 import { getAnalytics } from 'firebase/analytics'
 import { connectAuthEmulator, getAuth } from 'firebase/auth'
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
@@ -21,12 +25,25 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig)
 export const firebaseFunctions = getFunctions()
 export const auth = getAuth(app)
-export const storage = getStorage()
-export const db = getFirestore()
 
 // `npm run dev:emu` sets this, and nothing else does. The ports match
 // firebase.json.
 export const emulatorsOn = import.meta.env.VITE_USE_EMULATORS === 'true'
+
+// The IndexedDB cache lets reads work offline and keeps queued writes across
+// a reload. The emulators throw their data away on every restart, so a cache
+// kept from the last run would show stale documents; they get the default
+// memory cache.
+export const db = initializeFirestore(
+  app,
+  emulatorsOn
+    ? {}
+    : {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      }
+)
 if (emulatorsOn) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
   connectFirestoreEmulator(db, '127.0.0.1', 8085)
