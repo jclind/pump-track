@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { getTitleAndDate } from './getTitleAndDate'
 
 describe('getTitleAndDate', () => {
@@ -9,10 +9,16 @@ describe('getTitleAndDate', () => {
   })
 
   it('appends the current year to a short m/d date', () => {
-    const { title, date } = getTitleAndDate('Push 3/15')
-    expect(title).toBe('push')
-    const currYear = new Date().getFullYear()
-    expect(date).toBe(new Date(`3/15/${currYear}`).getTime())
+    // Pinned, since in January 3/15 is in the future and means last year.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 10, 16))
+    try {
+      const { title, date } = getTitleAndDate('Push 3/15')
+      expect(title).toBe('push')
+      expect(date).toBe(new Date(2026, 2, 15).getTime())
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('returns a null date when the string has no date', () => {
