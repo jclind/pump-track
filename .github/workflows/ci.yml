@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, prod]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Placeholder config, the same values as .env.emulators. Turning the
+    # emulator flag on keeps Analytics from calling Google with a fake key.
+    env:
+      VITE_USE_EMULATORS: 'true'
+      VITE_FIREBASE_API_KEY: demo-key
+      VITE_FIREBASE_AUTH_DOMAIN: demo-pump-track.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: demo-pump-track
+      VITE_FIREBASE_STORAGE_BUCKET: demo-pump-track.appspot.com
+      VITE_FIREBASE_MESSAGING_SENDER_ID: '0'
+      VITE_FIREBASE_APP_ID: demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix functions
+      - run: npm run lint
+      - run: npm run typecheck:test
+      - run: npm run build
+      - run: npm --prefix functions run build
+      - run: npm run test:run
