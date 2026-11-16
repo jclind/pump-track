@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import Modal from 'react-modal'
 import { auth, emulatorsOn } from './services/firestore'
 import { AiFillGoogleCircle } from 'react-icons/ai'
 import {
   getUsername,
-  logout,
   signupWithGoogle,
   updateUserActivity,
 } from './services/auth'
@@ -19,15 +18,18 @@ import { Lottie } from 'lottie-react'
 import loadingAnimationData from './assets/animations/page-loading.json'
 import Home from './Pages/Home'
 import { Route, Routes } from 'react-router-dom'
-import Charts from './Pages/Charts/Charts'
 import Layout from './Components/Layout/Layout'
 import Account from './Pages/Account/Account'
 import { PUMP_TRACK_LS_USERNAME } from './services/PUMP_TRACK_LS'
 import Friends from './Pages/Friends/Friends'
 import IncomingRequests from './Components/FriendsPage/IncomingRequests/IncomingRequests'
 import OutgoingRequests from './Components/FriendsPage/OutgoingRequests/OutgoingRequests'
+import NotFound from './Components/NotFound/NotFound'
 
 import * as Sentry from '@sentry/react'
+
+// chart.js and moment are only needed here, so they load with this page.
+const Charts = lazy(() => import('./Pages/Charts/Charts'))
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -35,8 +37,6 @@ Sentry.init({
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
   ],
-  // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled
-  tracePropagationTargets: ['localhost', /^https:\/\/yourserver\.io\/api/],
   // Performance Monitoring
   tracesSampleRate: 1.0, // Capture 100% of the transactions
   // Session Replay
@@ -68,8 +68,8 @@ function App() {
     const unsubscribe = auth.onAuthStateChanged(userInstance => {
       if (userInstance) {
         getUsername().then(() => {
-          // The lookup can wait on a sign-up for seconds, and the loading
-          // timeout may have signed the user out meanwhile.
+          // The lookup can wait on a sign-up for seconds, and the user may
+          // have signed out meanwhile.
           if (auth.currentUser?.uid !== userInstance.uid) return
           setUser(userInstance)
           updateUserActivity()
@@ -84,28 +84,19 @@ function App() {
     return () => unsubscribe()
   }, [])
 
+  // Gives up on the overlay if loading hangs. Sign-in is left out: the Google
+  // popup and a cold-starting setUsername can each take longer than this, and
+  // the sign-in reports its own errors.
   useEffect(() => {
-    const handleTimeout = () => {
-      toast.error('Error Timeout, something went wrong. Try refreshing', {
+    if (!showLoadingOverlay || loginLoading) return
+    const timeoutId = setTimeout(() => {
+      toast.error('Loading is taking too long. Try refreshing.', {
         position: 'bottom-center',
       })
-      logout()
       setShowLoadingOverlay(false)
-    }
-
-    const timeoutDuration = 10000
-
-    if (showLoadingOverlay) {
-      const timeoutId = setTimeout(() => {
-        handleTimeout()
-      }, timeoutDuration)
-
-      // Cleanup the timeout if stateVariable changes before the timeout triggers
-      return () => clearTimeout(timeoutId)
-    }
-
-    return () => {}
-  }, [showLoadingOverlay])
+    }, 10000)
+    return () => clearTimeout(timeoutId)
+  }, [showLoadingOverlay, loginLoading])
 
   const handleSignup = (testAccount?: TestAccount) => {
     setLoginLoading(true)
@@ -114,7 +105,9 @@ function App() {
         setLoginLoading(false)
       })
       .catch(err => {
-        toast.error(err, { position: 'bottom-center' })
+        toast.error(err?.message || String(err), {
+          position: 'bottom-center',
+        })
         setLoginLoading(false)
       })
   }
@@ -168,17 +161,31 @@ function App() {
             path='/charts'
             element={
               <Layout>
-                <Charts />
+                <Suspense fallback={null}>
+                  <Charts />
+                </Suspense>
+              </Layout>
+            }
+          />
+          <Route
+            path='*'
+            element={
+              <Layout>
+                <NotFound
+                  title='Page not found'
+                  message="There's nothing at this address."
+                />
               </Layout>
             }
           />
         </Routes>
       ) : (
         <div className='login-container'>
-          <h1>Workout Tracker</h1>
+          <h1>Pump Track</h1>
           <button
             className='btn-no-styles google-signup-btn'
             onClick={() => handleSignup()}
+            disabled={loginLoading}
           >
             <AiFillGoogleCircle className='icon' /> Sign In With Google
           </button>

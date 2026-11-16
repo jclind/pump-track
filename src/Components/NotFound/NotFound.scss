@@ -1,0 +1,11 @@
+@import '../../helpers.scss';
+
+.not-found {
+  .no-data-title {
+    margin: 0;
+  }
+  .home-link {
+    color: $secondary;
+    font-weight: 700;
+  }
+}
