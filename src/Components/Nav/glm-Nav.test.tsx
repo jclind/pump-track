@@ -20,9 +20,9 @@ const click = (el: Element | null) => {
   if (!el) throw new Error('button not found')
   fireEvent.click(el)
 }
-const renderNav = async () => {
+const renderNav = async (path = '/') => {
   const result = render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={[path]}>
       <Nav />
       <LocationProbe />
       <Routes>
@@ -65,6 +65,26 @@ describe('Nav', () => {
     click(container.querySelector('.account-btn'))
 
     expect(screen.getByTestId('location')).toHaveTextContent(/^at:\/$/)
+  })
+
+  it.each([
+    ['/user/sam', true],
+    ['/user/sam/friends', true],
+    ['/user/sam/friends/incoming', true],
+    ['/user/samantha', false],
+    ['/user/alex', false],
+    ['/charts', false],
+  ])('marks the account tab active at %s: %s', async (path, active) => {
+    const { container } = await renderNav(path)
+    const btn = container.querySelector('.account-btn')
+    expect(btn?.classList.contains('active')).toBe(active)
+  })
+
+  it('names the icon-only buttons for screen readers', async () => {
+    await renderNav()
+    expect(screen.getByRole('button', { name: 'Home' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Your profile' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Charts' })).toBeTruthy()
   })
 
   it('logs out back to the home page', async () => {

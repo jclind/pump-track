@@ -14,6 +14,12 @@ const Nav = () => {
   const location = useLocation()
   const currPage = location.pathname.split('/').pop()
   const [username, setUsername] = useState('')
+  // The signed-in user's own profile and friends pages count as the account
+  // tab. Other people's profiles don't.
+  const onOwnProfile =
+    !!username &&
+    (location.pathname === `/user/${username}` ||
+      location.pathname.startsWith(`/user/${username}/`))
 
   useEffect(() => {
     getUsername()
@@ -21,7 +27,9 @@ const Nav = () => {
         setUsername(res || '')
       })
       .catch((error: any) => {
-        toast.error(error, { position: 'bottom-center' })
+        toast.error(error?.message || String(error), {
+          position: 'bottom-center',
+        })
       })
   }, [])
 
@@ -39,17 +47,21 @@ const Nav = () => {
             currPage === '' ? 'active' : ''
           }`}
           onClick={() => navigate('/')}
+          aria-label='Home'
+          aria-current={currPage === '' ? 'page' : undefined}
         >
           <AiOutlineHome className='icon' />
         </button>
         <button
           className={`btn-no-styles account-btn ${
-            currPage === 'account' ? 'active' : ''
+            onOwnProfile ? 'active' : ''
           }`}
           // Until the lookup returns, the link would be /user/, which no route
           // matches, and a refresh there stays blank.
           disabled={!username}
           onClick={() => navigate(`/user/${username}`)}
+          aria-label='Your profile'
+          aria-current={onOwnProfile ? 'page' : undefined}
         >
           <AiOutlineUser className='icon' />
         </button>
@@ -58,6 +70,8 @@ const Nav = () => {
             currPage === 'charts' ? 'active' : ''
           }`}
           onClick={() => navigate('/charts')}
+          aria-label='Charts'
+          aria-current={currPage === 'charts' ? 'page' : undefined}
         >
           <AiOutlineLineChart className='icon' />
         </button>

@@ -12,7 +12,6 @@ type UserDetailsProps = {
   userData: UserProfileDataType | null
   numFriends: number | null
   loading: boolean
-  setLoading: React.Dispatch<React.SetStateAction<boolean>>
   currUserIsAuthor: boolean | null
 }
 
@@ -32,6 +31,7 @@ const UserDetails = ({
         className='btn-no-styles profile-image-container'
         onClick={() => setIsFriendQRModalOpen(true)}
         disabled={loading}
+        aria-label='Show profile QR code'
       >
         {!userData || loading ? (
           <Skeleton

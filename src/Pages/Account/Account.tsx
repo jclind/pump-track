@@ -9,6 +9,7 @@ import FriendsList from '../../Components/FriendsList/FriendsList'
 import { getFriendshipStatus, getNumberOfFriends } from '../../services/friends'
 import FriendStatusButton from '../../Components/FriendStatusButton/FriendStatusButton'
 import LastWorkout from '../../Components/LastWorkout/LastWorkout'
+import NotFound from '../../Components/NotFound/NotFound'
 
 const Account = () => {
   const [userData, setUserData] = useState<UserProfileDataType | null>(null)
@@ -17,6 +18,7 @@ const Account = () => {
   const [friendshipStatus, setFriendshipStatus] =
     useState<FriendsStatusType | null>(null)
   const [userDetailsLoading, setUserDetailsLoading] = useState(true)
+  const [userNotFound, setUserNotFound] = useState(false)
   const { username } = useParams()
 
   const checkCurrUserIsAuthor = async (username: string) => {
@@ -28,9 +30,12 @@ const Account = () => {
     const p1 = getUserData(username)
       .then(res => {
         setUserData(res)
+        setUserNotFound(!res)
       })
       .catch((error: any) => {
-        toast.error(error, { position: 'bottom-center' })
+        toast.error(error?.message || String(error), {
+          position: 'bottom-center',
+        })
       })
     const p2 = getNumberOfFriends(username).then(res => {
       setNumFriends(res || 0)
@@ -47,7 +52,7 @@ const Account = () => {
   }, [username])
 
   useEffect(() => {
-    if (currUserIsAuthor === false && username) {
+    if (currUserIsAuthor === false && username && !userNotFound) {
       getFriendshipStatus(username).then(res => {
         if (res) {
           setFriendshipStatus(res)
@@ -57,16 +62,26 @@ const Account = () => {
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currUserIsAuthor])
+  }, [currUserIsAuthor, userNotFound])
 
   if (!username) return null
+
+  if (userNotFound) {
+    return (
+      <div className='account-page'>
+        <NotFound
+          title='User not found'
+          message={`No one here goes by @${username}.`}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className='account-page'>
       <UserDetails
         userData={userData}
         loading={userDetailsLoading}
-        setLoading={setUserDetailsLoading}
         numFriends={numFriends}
         currUserIsAuthor={currUserIsAuthor}
       />

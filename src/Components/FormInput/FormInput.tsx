@@ -92,6 +92,7 @@ const FormInput = ({
           <button
             className='btn-no-styles clear-btn'
             onMouseDown={handleClearInput}
+            aria-label='Clear input'
           >
             <AiFillCloseCircle className='icon' />
           </button>
