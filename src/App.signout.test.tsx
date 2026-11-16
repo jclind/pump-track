@@ -10,6 +10,7 @@ let authListener: (user: any) => void = () => {}
 let finishLookup = () => {}
 
 vi.mock('./services/firestore', () => ({
+  emulatorsOn: false,
   auth: {
     currentUser: null,
     onAuthStateChanged: (cb: (user: any) => void) => {

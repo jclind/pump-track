@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Modal from 'react-modal'
-import { auth } from './services/firestore'
+import { auth, emulatorsOn } from './services/firestore'
 import { AiFillGoogleCircle } from 'react-icons/ai'
 import {
   getUsername,
@@ -8,6 +8,11 @@ import {
   signupWithGoogle,
   updateUserActivity,
 } from './services/auth'
+import {
+  SEEDED_TEST_ACCOUNTS,
+  TestAccount,
+  newTestAccount,
+} from './services/testAccounts'
 import { User } from 'firebase/auth'
 import toast, { Toaster } from 'react-hot-toast'
 import { Lottie } from 'lottie-react'
@@ -102,9 +107,9 @@ function App() {
     return () => {}
   }, [showLoadingOverlay])
 
-  const handleSignup = () => {
+  const handleSignup = (testAccount?: TestAccount) => {
     setLoginLoading(true)
-    signupWithGoogle()
+    signupWithGoogle(testAccount)
       .then(() => {
         setLoginLoading(false)
       })
@@ -173,10 +178,29 @@ function App() {
           <h1>Workout Tracker</h1>
           <button
             className='btn-no-styles google-signup-btn'
-            onClick={handleSignup}
+            onClick={() => handleSignup()}
           >
             <AiFillGoogleCircle className='icon' /> Sign In With Google
           </button>
+          {emulatorsOn && (
+            <>
+              {SEEDED_TEST_ACCOUNTS.map(account => (
+                <button
+                  key={account.sub}
+                  className='btn-no-styles google-signup-btn'
+                  onClick={() => handleSignup(account)}
+                >
+                  Sign in as {account.name}
+                </button>
+              ))}
+              <button
+                className='btn-no-styles google-signup-btn'
+                onClick={() => handleSignup(newTestAccount())}
+              >
+                Sign up as a new test user
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

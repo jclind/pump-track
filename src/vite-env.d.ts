@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_FIREBASE_APP_ID: string
   readonly VITE_FIREBASE_MEASUREMENT_ID: string
   readonly VITE_SENTRY_DSN?: string // currently unset in prod
+  readonly VITE_USE_EMULATORS?: string // set only by .env.emulators
 }
 
 interface ImportMeta {
