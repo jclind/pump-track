@@ -368,7 +368,7 @@ const UserCard = ({
             height={'100%'}
           />
         ) : (
-          <img src={user.photoUrl} alt={user.displayName} />
+          <img src={user.photoUrl || undefined} alt={user.displayName} />
         )}
       </div>
       <div className='user-info'>

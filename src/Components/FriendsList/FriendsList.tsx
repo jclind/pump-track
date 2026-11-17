@@ -62,7 +62,8 @@ const SuggestedFriend = ({
             height={40}
           />
         ) : (
-          <img src={photoUrl} alt={displayName} />
+          // An empty src makes the browser request the page itself.
+          <img src={photoUrl || undefined} alt={displayName} />
         )}
       </div>
       {loading ? (
