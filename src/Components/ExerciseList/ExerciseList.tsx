@@ -57,14 +57,26 @@ const ExerciseInputs = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Texts this input has passed up and not yet seen come back. With fast
+  // typing the parent can hand back an older one after a newer keystroke,
+  // and taking it as a change from outside dropped the newest character.
+  const sentTexts = useRef<string[]>([])
+
   useEffect(() => {
     const parsedExerciseData = parseExercise(exerciseStr)
     setExerciseName(parsedExerciseData.name)
+    sentTexts.current.push(exerciseStr)
     updateExercise(exercise.id, exerciseStr)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciseStr])
   useEffect(() => {
+    const echoIndex = sentTexts.current.lastIndexOf(exercise.text)
+    if (echoIndex !== -1) {
+      sentTexts.current = sentTexts.current.slice(echoIndex)
+      return
+    }
     if (exercise.text !== exerciseStr) {
+      sentTexts.current = []
       setExerciseStr(exercise.text)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

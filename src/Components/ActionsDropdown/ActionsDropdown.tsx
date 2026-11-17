@@ -64,12 +64,8 @@ const ActionsDropdown = ({ buttons }: ActionsDropdownProps) => {
             if (confirming === item.text) {
               return (
                 <div className='confirm' key={item.text}>
-                  <button
-                    className='item btn-no-styles'
-                    onClick={() => setConfirming(null)}
-                  >
-                    Cancel
-                  </button>
+                  {/* Cancel sits on the right, where the first click landed, so a
+                      double click doesn't confirm. */}
                   <button
                     className={`item btn-no-styles ${item.type ? item.type : ''}`}
                     onClick={() => {
@@ -79,6 +75,12 @@ const ActionsDropdown = ({ buttons }: ActionsDropdownProps) => {
                     }}
                   >
                     Confirm
+                  </button>
+                  <button
+                    className='item btn-no-styles'
+                    onClick={() => setConfirming(null)}
+                  >
+                    Cancel
                   </button>
                 </div>
               )
