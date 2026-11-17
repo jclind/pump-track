@@ -489,21 +489,34 @@ export const getNumberOfTotalExercises = async (): Promise<
     }
   }
 }
+// The function accepts at most this much change per call.
+const MAX_TOTALS_CHANGE = 1000
+
 export const updateTotalWorkoutsAndExercises = async (
   numWorkouts: number,
   numExercises: number
 ) => {
-  try {
-    const uid = auth?.currentUser?.uid
-    if (uid) {
-      const cloudUpdateTotalWorkoutsAndExercises = httpsCallable(
-        firebaseFunctions,
-        'updateTotalWorkoutsAndExercises'
-      )
-      cloudUpdateTotalWorkoutsAndExercises({ uid, numWorkouts, numExercises })
-    }
-  } catch (error) {
-    showError(error)
+  const uid = auth?.currentUser?.uid
+  if (!uid) return
+  const cloudUpdateTotalWorkoutsAndExercises = httpsCallable(
+    firebaseFunctions,
+    'updateTotalWorkoutsAndExercises'
+  )
+  const step = (n: number) =>
+    Math.max(-MAX_TOTALS_CHANGE, Math.min(MAX_TOTALS_CHANGE, n))
+  // A big import can change the totals by more than one call takes.
+  let workoutsLeft = Math.trunc(numWorkouts) || 0
+  let exercisesLeft = Math.trunc(numExercises) || 0
+  while (workoutsLeft !== 0 || exercisesLeft !== 0) {
+    const workouts = step(workoutsLeft)
+    const exercises = step(exercisesLeft)
+    await cloudUpdateTotalWorkoutsAndExercises({
+      uid,
+      numWorkouts: workouts,
+      numExercises: exercises,
+    })
+    workoutsLeft -= workouts
+    exercisesLeft -= exercises
   }
 }
 
@@ -542,7 +555,7 @@ export const updateExercise = async (
   if (!name) {
     if (existing.exists()) {
       await deleteDoc(exerciseDocRef)
-      await updateTotalWorkoutsAndExercises(0, -1)
+      await afterSave(() => updateTotalWorkoutsAndExercises(0, -1))
     }
   } else if (existing.exists()) {
     await updateDoc(exerciseDocRef, {
@@ -560,11 +573,13 @@ export const updateExercise = async (
       index,
       maxWeight,
     })
-    await updateTotalWorkoutsAndExercises(0, 1)
+    await afterSave(() => updateTotalWorkoutsAndExercises(0, 1))
   }
 
   if (name !== (oldName ?? '')) {
-    await updateUniqueTitles('exerciseTitles', name || null, oldName)
+    await afterSave(() =>
+      updateUniqueTitles('exerciseTitles', name || null, oldName)
+    )
   }
   return updatedExerciseList
 }
@@ -585,7 +600,10 @@ export const updateWorkout = async (
 
   await updateDoc(workoutDocRef, data)
   if (data.name && data.name !== normalizeTitle(currWorkoutData.name)) {
-    await updateUniqueTitles('workoutTitles', data.name, currWorkoutData.name)
+    const newName = data.name
+    await afterSave(() =>
+      updateUniqueTitles('workoutTitles', newName, currWorkoutData.name)
+    )
   }
 }
 
