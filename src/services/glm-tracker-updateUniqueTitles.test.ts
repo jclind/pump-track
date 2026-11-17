@@ -25,6 +25,20 @@ vi.mock('firebase/firestore', () => ({
     Object.assign(mockStore.userData, data)
   },
   where: () => ({}),
+  writeBatch: () => ({ set: () => {}, delete: () => {}, commit: async () => {} }),
+  runTransaction: async (_db: unknown, fn: (t: unknown) => Promise<void>) =>
+    fn({
+      get: async () => ({
+        exists: () => true,
+        data: () => mockStore.userData,
+      }),
+      update: (_ref: unknown, data: Record<string, unknown>) => {
+        Object.assign(mockStore.userData, data)
+      },
+      set: (_ref: unknown, data: Record<string, unknown>) => {
+        Object.assign(mockStore.userData, data)
+      },
+    }),
 }))
 
 const titles = () => mockStore.userData.workoutTitles

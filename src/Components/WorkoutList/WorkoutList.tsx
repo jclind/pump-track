@@ -18,14 +18,11 @@ import toast from 'react-hot-toast'
 import TextareaAutosize from '@mui/material/TextareaAutosize'
 import { TailSpin } from 'react-loader-spinner'
 import { calculateInputWidth } from '../../util/calculateInputWidth'
+import { errorMessage } from '../../util/errorMessage'
 
 type ExerciseItemProps = {
   exercise: ExerciseDataType
-  handleUpdateExercise: (
-    exerciseID: string,
-    updatedExerciseStr: string,
-    originalExerciseStr: string
-  ) => void
+  handleUpdateExercise: (exerciseID: string, updatedExerciseStr: string) => void
 }
 const ExerciseItem = ({
   exercise,
@@ -33,7 +30,6 @@ const ExerciseItem = ({
 }: ExerciseItemProps) => {
   const [editedStr, setEditedStr] = useState(exercise.originalString)
   const [isFocused, setIsFocused] = useState(false)
-  const [prevTitle, setPrevTitle] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -47,14 +43,13 @@ const ExerciseItem = ({
 
   const handleFocus = () => {
     setIsFocused(true)
-    setPrevTitle(editedStr)
   }
   const handleBlur = () => {
     setIsFocused(false)
     if (!editedStr.trim()) {
       setEditedStr(exercise.originalString)
     } else if (editedStr.trim() !== exercise.originalString) {
-      handleUpdateExercise(exercise.id, editedStr.trim(), prevTitle)
+      handleUpdateExercise(exercise.id, editedStr.trim())
     }
   }
 
@@ -115,9 +110,7 @@ const WorkoutTitle = ({ title, handleUpdateTitle }: WorkoutTitleProps) => {
       onKeyDown={handleKeyDown}
       ref={inputRef}
       style={{ width: calculateInputWidth(editedStr, 'Nunito', 10) }}
-      // style={{ width: `${editedStr.length}ch` }}
     />
-    // <h3 className='workout-title'>{title}</h3>
   )
 }
 
@@ -148,12 +141,11 @@ const WorkoutList = ({
 
   useEffect(() => {
     setLoading(true)
-    getUniqueTitles('workoutTitles').then(res => {
-      if (res) {
-        setWorkoutTitles(res)
-        getNextWorkouts(lastDoc)
-      }
-    })
+    getUniqueTitles('workoutTitles')
+      .then(res => {
+        if (res) setWorkoutTitles(res)
+      })
+      .finally(() => getNextWorkouts(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -178,24 +170,42 @@ const WorkoutList = ({
     getWorkouts(15, lastDoc, nameFilter)
       .then(res => {
         if (res?.data) {
-          const updatedWorkoutList = [...workoutList, ...res.data]
-          if (newQuery) {
-            setWorkoutList(res.data)
-          } else {
-            setWorkoutList(updatedWorkoutList)
-          }
+          const updatedWorkoutList = newQuery
+            ? res.data
+            : [...workoutList, ...res.data]
+          setWorkoutList(updatedWorkoutList)
           setLastDoc(res.lastDoc)
           setIsMoreData(res.totalResults > updatedWorkoutList.length)
         }
-        setLoading(false)
-        setMoreLoading(false)
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
         console.log(error)
-        toast.error(error.message || error)
+        toast.error(errorMessage(error), { position: 'bottom-center' })
+      })
+      .finally(() => {
         setLoading(false)
         setMoreLoading(false)
       })
+  }
+
+  const replaceWorkout = (
+    workoutID: string,
+    update: (workout: WorkoutDataType) => WorkoutDataType
+  ) => {
+    setWorkoutList(prev =>
+      prev.map(workout =>
+        workout.id === workoutID ? update(workout) : workout
+      )
+    )
+  }
+
+  const setExerciseInList = (workoutID: string, exercise: ExerciseDataType) => {
+    replaceWorkout(workoutID, workout => ({
+      ...workout,
+      exercises: workout.exercises.map(ex =>
+        ex.id === exercise.id ? exercise : ex
+      ),
+    }))
   }
 
   if (workoutList.length <= 0 && !nameFilter) return null
@@ -240,60 +250,55 @@ const WorkoutList = ({
       </div>
       <div className='workout-list'>
         {workoutList.map(workout => {
+          // The list is updated before the save, so a second edit in the
+          // same workout builds on the first. A failed save puts back only
+          // the exercise it changed.
           const handleUpdateExercise = (
             exerciseID: string,
-            updatedExerciseStr: string,
-            originalExerciseStr: string
+            updatedExerciseStr: string
           ) => {
             const currExercise = workout.exercises.find(
               ex => ex.id === exerciseID
             )
-            if (currExercise?.originalString !== updatedExerciseStr)
-              if (currExercise) {
-                const parsedExercise = parseExercise(
-                  updatedExerciseStr,
-                  exerciseID
-                )
-                // const updatedWorkoutList: WorkoutDataType[] = workoutList.map(
-                //   currWorkout => {
-                //     if (currWorkout.id === workout.id) {
-                //       const updatedExercises = workout.exercises.map(ex => {
-                //         if (ex.id === exerciseID) return currExercise
-                //         return ex
-                //       })
-                //       const updatedWorkout: WorkoutDataType = {
-                //         ...currWorkout,
-                //         exercises: updatedExercises,
-                //       }
-                //       return updatedWorkout
-                //     }
-                //     return currWorkout
-                //   }
-                // )
-                // setWorkoutList(updatedWorkoutList)
-                const originalExerciseName =
-                  parseExercise(originalExerciseStr).name
-                updateExercise(
-                  exerciseID,
-                  workout.id,
-                  workout.exercises,
-                  parsedExercise,
-                  originalExerciseName
-                )
-              }
+            if (
+              !currExercise ||
+              currExercise.originalString === updatedExerciseStr
+            )
+              return
+            const parsedExercise = parseExercise(updatedExerciseStr, exerciseID)
+            setExerciseInList(workout.id, parsedExercise)
+            updateExercise(workout, parsedExercise).catch((error: unknown) => {
+              console.log(error)
+              setExerciseInList(workout.id, currExercise)
+              toast.error(`Edit not saved: ${errorMessage(error)}`, {
+                position: 'bottom-center',
+              })
+            })
           }
           const handleUpdateTitle = (updatedTitle: string) => {
-            if (workout.name !== updatedTitle) {
-              updateWorkout(workout, { name: updatedTitle })
-            }
+            const name = updatedTitle.toLowerCase().trim()
+            if (!name || workout.name === name) return
+            const previousName = workout.name
+            replaceWorkout(workout.id, w => ({ ...w, name }))
+            updateWorkout(workout, { name }).catch((error: unknown) => {
+              console.log(error)
+              replaceWorkout(workout.id, w => ({ ...w, name: previousName }))
+              toast.error(`Title not saved: ${errorMessage(error)}`, {
+                position: 'bottom-center',
+              })
+            })
           }
           const date = workout.date
 
           const handleDeleteWorkout = () => {
             const deletePromise = deleteWorkout(workout.id)
-            deletePromise.then(() => {
-              setWorkoutList(prev => prev.filter(w => w.id !== workout.id))
-            })
+            // toast.promise shows the failure.
+            deletePromise.then(
+              () => {
+                setWorkoutList(prev => prev.filter(w => w.id !== workout.id))
+              },
+              () => {}
+            )
             toast.promise(
               deletePromise,
               {
@@ -311,6 +316,9 @@ const WorkoutList = ({
             <div className='single-workout' key={workout.id}>
               <div className='head'>
                 <WorkoutTitle
+                  // Remount when the stored title changes, so the input
+                  // shows the saved form or the title a failed save restored.
+                  key={workout.name}
                   title={workout.name}
                   handleUpdateTitle={handleUpdateTitle}
                 />
@@ -322,6 +330,7 @@ const WorkoutList = ({
                         text: 'Delete',
                         icon: <BsTrashFill className='icon' />,
                         type: 'danger',
+                        confirm: true,
                         action: handleDeleteWorkout,
                       },
                     ]}
@@ -332,7 +341,7 @@ const WorkoutList = ({
                 {workout.exercises.map(exercise => {
                   return (
                     <ExerciseItem
-                      key={exercise.id}
+                      key={`${exercise.id}:${exercise.originalString}`}
                       exercise={exercise}
                       handleUpdateExercise={handleUpdateExercise}
                     />

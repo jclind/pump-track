@@ -31,32 +31,66 @@ type ActionsDropdownProps = {
     text: string
     icon: React.JSX.Element
     type?: 'default' | 'danger'
+    // Ask for a second tap, Cancel or Confirm, before running the action.
+    confirm?: boolean
     action: () => void
   }[]
 }
 
 const ActionsDropdown = ({ buttons }: ActionsDropdownProps) => {
   const [isOpen, setIsOpen] = useState(false)
+  const [confirming, setConfirming] = useState<string | null>(null)
 
   const wrapperRef = useRef<HTMLDivElement>(null)
   useOutsideAlerter(wrapperRef, setIsOpen)
+
+  const toggleOpen = () => {
+    setIsOpen(prev => !prev)
+    setConfirming(null)
+  }
 
   return (
     <div className='actions-dropdown-container'>
       <button
         className='trigger btn-no-styles'
-        onClick={() => setIsOpen(prev => !prev)}
+        aria-label='Actions'
+        onClick={toggleOpen}
       >
         <AiOutlineEllipsis className='icon' />
       </button>
       {isOpen && (
         <div className='dropdown' ref={wrapperRef}>
           {buttons.map(item => {
+            if (confirming === item.text) {
+              return (
+                <div className='confirm' key={item.text}>
+                  <button
+                    className='item btn-no-styles'
+                    onClick={() => setConfirming(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className={`item btn-no-styles ${item.type ? item.type : ''}`}
+                    onClick={() => {
+                      setConfirming(null)
+                      setIsOpen(false)
+                      item.action()
+                    }}
+                  >
+                    Confirm
+                  </button>
+                </div>
+              )
+            }
             return (
               <button
                 key={item.text}
                 className={`item btn-no-styles ${item.type ? item.type : ''}`}
-                onClick={item.action}
+                onClick={() => {
+                  if (item.confirm) setConfirming(item.text)
+                  else item.action()
+                }}
               >
                 {item.icon}
                 <div className='text'>{item.text}</div>

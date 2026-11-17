@@ -1,7 +1,7 @@
 import { getDataFromExercise } from './getDataFromExercise'
 import { parseExercise } from './parseExercise'
 
-// The app stores exercise names in lowercase (see addExercises in tracker.ts).
+// The app stores exercise names in lowercase (see exerciseDocWrites in tracker.ts).
 const stored = (str: string) => {
   const exercise = parseExercise(str)
   return { ...exercise, name: exercise.name.toLowerCase() }
