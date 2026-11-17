@@ -48,6 +48,17 @@ const showError = (error: unknown) => {
 
 const normalizeTitle = (title: string) => title.toLowerCase().trim()
 
+// Title counts and profile totals are updated after the workout itself is
+// saved. If that follow-up fails, the save still happened, so log it and
+// don't report the whole action as failed.
+const afterSave = async (followUp: () => Promise<void>) => {
+  try {
+    await followUp()
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 // A write with no data is a delete.
 type PendingWrite = { ref: DocumentReference; data?: DocumentData }
 
@@ -129,11 +140,12 @@ export const addWorkout = async (
         { ref: workoutDocRef, data: { ...workoutData } },
         ...writes,
       ])
-      await updateUniqueTitles('workoutTitles', workoutTitle)
-      await updateUniqueTitles('exerciseTitles', titles)
-
-      await updateTotalWorkoutsAndExercises(1, titles.length)
-      await updateUserActivity()
+      await afterSave(async () => {
+        await updateUniqueTitles('workoutTitles', workoutTitle)
+        await updateUniqueTitles('exerciseTitles', titles)
+        await updateTotalWorkoutsAndExercises(1, titles.length)
+        await updateUserActivity()
+      })
 
       return workoutData
     } catch (error) {
@@ -186,9 +198,14 @@ export const importWorkouts = async (
   })
 
   await commitInChunks(writes)
-  await updateUniqueTitles('workoutTitles', workoutTitles)
-  await updateUniqueTitles('exerciseTitles', exerciseTitles)
-  await updateTotalWorkoutsAndExercises(imported.length, exerciseTitles.length)
+  await afterSave(async () => {
+    await updateUniqueTitles('workoutTitles', workoutTitles)
+    await updateUniqueTitles('exerciseTitles', exerciseTitles)
+    await updateTotalWorkoutsAndExercises(
+      imported.length,
+      exerciseTitles.length
+    )
+  })
   return imported
 }
 
@@ -218,12 +235,14 @@ export const deleteWorkout = async (workoutID: string) => {
   })
 
   await commitInChunks(writes)
-  await updateUniqueTitles('workoutTitles', null, workoutName)
-  await updateUniqueTitles('exerciseTitles', null, exerciseTitles)
-  await updateTotalWorkoutsAndExercises(
-    workoutSnapshot.exists() ? -1 : 0,
-    -exercisesQuerySnapshot.size
-  )
+  await afterSave(async () => {
+    await updateUniqueTitles('workoutTitles', null, workoutName)
+    await updateUniqueTitles('exerciseTitles', null, exerciseTitles)
+    await updateTotalWorkoutsAndExercises(
+      workoutSnapshot.exists() ? -1 : 0,
+      -exercisesQuerySnapshot.size
+    )
+  })
 }
 
 export const searchExercises = async (
