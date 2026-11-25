@@ -12,6 +12,12 @@ import Skeleton from '@mui/material/Skeleton'
 import styles from '../../../_exports.module.scss'
 import { Link } from 'react-router-dom'
 import { AiOutlineCheck } from 'react-icons/ai'
+import toast from 'react-hot-toast'
+
+const showError = (error: unknown) => {
+  const message = (error as { message?: string } | null)?.message
+  toast.error(message || String(error), { position: 'bottom-center' })
+}
 
 type UserDataType = CombinedFriendsData | null
 
@@ -41,12 +47,17 @@ const IncomingActions = ({
     e.preventDefault()
     if (user && setNumIncoming) {
       setDenyRequestLoading(true)
-      removeIncomingRequest(user.username).then(() => {
-        setIsDenied(true)
-        setDenyRequestLoading(false)
-        removeFromList(user.friendUID)
-        setNumIncoming(prev => (prev ? prev - 1 : 0))
-      })
+      removeIncomingRequest(user.username)
+        .then(() => {
+          setIsDenied(true)
+          setDenyRequestLoading(false)
+          removeFromList(user.friendUID)
+          setNumIncoming(prev => (prev ? prev - 1 : 0))
+        })
+        .catch(error => {
+          setDenyRequestLoading(false)
+          showError(error)
+        })
     }
   }
   const handleAcceptRequest = (
@@ -56,13 +67,18 @@ const IncomingActions = ({
     e.preventDefault()
     if (user && setNumIncoming && setNumFriends) {
       setAcceptRequestLoading(true)
-      acceptFriendRequest(user.username).then(() => {
-        setAcceptRequestLoading(false)
-        setIsFriends(true)
-        removeFromList(user.friendUID)
-        setNumIncoming(prev => (prev ? prev - 1 : 0))
-        setNumFriends(prev => (prev ? prev + 1 : 1))
-      })
+      acceptFriendRequest(user.username)
+        .then(() => {
+          setAcceptRequestLoading(false)
+          setIsFriends(true)
+          removeFromList(user.friendUID)
+          setNumIncoming(prev => (prev ? prev - 1 : 0))
+          setNumFriends(prev => (prev ? prev + 1 : 1))
+        })
+        .catch(error => {
+          setAcceptRequestLoading(false)
+          showError(error)
+        })
     }
   }
 
@@ -175,12 +191,17 @@ const FriendActions = ({
     e.preventDefault()
     if (user && removeFromList && setNumFriends) {
       setRemoveFriendLoading(true)
-      removeFriend(user.friendUID).then(() => {
-        setRemoveFriendLoading(false)
-        setFriendRemoved(true)
-        removeFromList(user.friendUID)
-        setNumFriends(prev => (prev ? prev - 1 : 0))
-      })
+      removeFriend(user.friendUID)
+        .then(() => {
+          setRemoveFriendLoading(false)
+          setFriendRemoved(true)
+          removeFromList(user.friendUID)
+          setNumFriends(prev => (prev ? prev - 1 : 0))
+        })
+        .catch(error => {
+          setRemoveFriendLoading(false)
+          showError(error)
+        })
     }
   }
 
@@ -204,13 +225,6 @@ const FriendActions = ({
       ) : isConfirmRemoveOpen ? (
         <>
           <button
-            className='btn-no-styles cancel-remove-friend-btn'
-            onClick={handleCancelConfirm}
-            disabled={isBtnDisabled}
-          >
-            Cancel
-          </button>
-          <button
             className='btn-no-styles confirm-remove-friend-btn'
             onClick={handleRemoveFriend}
             disabled={isBtnDisabled}
@@ -225,6 +239,13 @@ const FriendActions = ({
             ) : (
               'Confirm'
             )}
+          </button>
+          <button
+            className='btn-no-styles cancel-remove-friend-btn'
+            onClick={handleCancelConfirm}
+            disabled={isBtnDisabled}
+          >
+            Cancel
           </button>
         </>
       ) : (
@@ -255,10 +276,15 @@ const OutgoingActions = ({ user, loading, removeFromList }: CardTypeProps) => {
     if (user) {
       setRemoveRequestLoading(true)
 
-      removeOutgoingRequest(user.friendUID).then(() => {
-        setIsRemoved(true)
-        removeFromList(user.friendUID)
-      })
+      removeOutgoingRequest(user.friendUID)
+        .then(() => {
+          setIsRemoved(true)
+          removeFromList(user.friendUID)
+        })
+        .catch(error => {
+          setRemoveRequestLoading(false)
+          showError(error)
+        })
     }
   }
 
@@ -342,7 +368,7 @@ const UserCard = ({
             height={'100%'}
           />
         ) : (
-          <img src={user.photoUrl} alt={user.displayName} />
+          <img src={user.photoUrl || undefined} alt={user.displayName} />
         )}
       </div>
       <div className='user-info'>

@@ -19,6 +19,7 @@ const LastWorkout = () => {
           setLoading(false)
         } else {
           setNoData(true)
+          setLoading(false)
         }
       })
       .catch(() => setLoading(false))

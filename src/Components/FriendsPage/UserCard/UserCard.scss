@@ -107,9 +107,11 @@
   }
 
   button.remove-btn,
+  // Cancel sits where Remove was, so a double click can't confirm.
   button.cancel-remove-friend-btn {
     color: $secondary-text;
     background: $tertiary-background;
+    width: 80px;
   }
 
   button.confirm-remove-friend-btn {

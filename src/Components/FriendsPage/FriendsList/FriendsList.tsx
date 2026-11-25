@@ -28,7 +28,11 @@ const FriendsList = ({ setNumFriends }: FriendsListProps) => {
     const updatedFriends = [...friends, ...res.friendsData]
     setLastDoc(res.lastDoc)
     setFriends(updatedFriends)
-    if (res.numFriends <= updatedFriends.length) {
+    // An empty page also ends the list, so a failed load can't loop.
+    if (
+      res.numFriends <= updatedFriends.length ||
+      res.friendsData.length === 0
+    ) {
       setIsMoreData(false)
     }
     setLoading(false)
@@ -36,7 +40,8 @@ const FriendsList = ({ setNumFriends }: FriendsListProps) => {
 
   const handlePaginateFriends = async () => {
     setIsMoreLoading(true)
-    handleGetFriends(lastDoc)
+    await handleGetFriends(lastDoc)
+    setIsMoreLoading(false)
   }
   useEffect(() => {
     handleGetFriends(lastDoc)

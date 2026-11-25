@@ -1,5 +1,6 @@
 import {
   GoogleAuthProvider,
+  User,
   signInWithCredential,
   signInWithPopup,
   signOut,
@@ -20,6 +21,14 @@ import { PUMP_TRACK_LS_USERNAME } from './PUMP_TRACK_LS'
 import toast from 'react-hot-toast'
 import { httpsCallable } from 'firebase/functions'
 
+const errorMessage = (error: unknown): string =>
+  (error as { message?: string } | null)?.message || String(error)
+
+const reportError = (error: unknown) => {
+  console.log(error)
+  toast.error(errorMessage(error), { position: 'bottom-center' })
+}
+
 // Settles when the sign-up in progress has written the username. Signing in
 // fires the auth listener straight away, and setUsername can take seconds on
 // a cold start, so a username lookup waits for this instead of finding none.
@@ -35,6 +44,56 @@ const signInWithGoogle = (testAccount?: TestAccount) => {
   return signInWithPopup(auth, new GoogleAuthProvider())
 }
 
+// How many names to try before giving up when the generated one is taken.
+const USERNAME_ATTEMPTS = 5
+
+const randomSuffix = () =>
+  Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, '0')
+
+// Claims a username for the signed-in user, trying a new suffix whenever the
+// name is taken.
+const claimUsername = async (name: string, createdAt: string) => {
+  for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
+    const suffix = attempt === 0 ? createdAt.slice(-7) : randomSuffix()
+    const username = generateUsername(name, suffix)
+    if (await addUsername(username)) return username
+  }
+  throw new Error(
+    "Couldn't pick a username for your account. Try signing in again."
+  )
+}
+
+// Creates whatever a sign-up left out. An earlier sign-up can stop between
+// claiming the username and writing the profile, so this checks what exists
+// instead of trusting that a returning user is complete.
+const completeSignup = async (user: User) => {
+  const { displayName, email, photoURL: photoUrl, uid } = user
+  const userProfileDocRef = doc(db, 'userProfileData', uid)
+  const profileSnap = await getDoc(userProfileDocRef)
+  if (profileSnap.exists()) return
+
+  const createdAt = user.metadata.creationTime
+    ? new Date(user.metadata.creationTime).getTime()
+    : new Date().getTime()
+  const name = displayName || email?.split('@')[0] || ''
+  const username =
+    (await findUsernameForUid(uid)) ||
+    (await claimUsername(name, createdAt.toString()))
+
+  const userProfileData: UserProfileDataType = {
+    createdAt,
+    displayName: displayName || '',
+    photoUrl: photoUrl || '',
+    username,
+    totalWorkouts: 0,
+    totalExercises: 0,
+    lastActive: createdAt,
+  }
+  await setDoc(userProfileDocRef, userProfileData)
+}
+
 export const signupWithGoogle = async (testAccount?: TestAccount) => {
   let finishSignup = () => {}
   signupFinished = new Promise(resolve => {
@@ -42,33 +101,16 @@ export const signupWithGoogle = async (testAccount?: TestAccount) => {
   })
   try {
     const cred = await signInWithGoogle(testAccount)
-    const user = cred.user
-
-    if (user.metadata.creationTime === user.metadata.lastSignInTime) {
-      const { displayName, email, photoURL: photoUrl, uid } = user
-      const createdAt = user.metadata.creationTime
-        ? new Date(user.metadata.creationTime).getTime()
-        : new Date().getTime()
-      const name = displayName || email?.split('@')[0] || ''
-      const username = generateUsername(name, createdAt.toString())
-      await addUsername(username)
-
-      const userProfileData: UserProfileDataType = {
-        createdAt: Number(createdAt),
-        displayName: displayName || '',
-        photoUrl: photoUrl || '',
-        username,
-        totalWorkouts: 0,
-        totalExercises: 0,
-        lastActive: Number(createdAt),
-      }
-      const userProfileDocRef = doc(db, 'userProfileData', uid)
-      await setDoc(userProfileDocRef, userProfileData)
+    try {
+      await completeSignup(cred.user)
+    } catch (error) {
+      // Signed in without a profile, the app has nothing to show. Signing out
+      // lets the next sign-in try again.
+      await signOut(auth).catch(() => {})
+      throw error
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   } finally {
     finishSignup()
   }
@@ -76,96 +118,80 @@ export const signupWithGoogle = async (testAccount?: TestAccount) => {
 export const logout = async () => {
   try {
     await signOut(auth)
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
-// Usernames are written only by the setUsername function, which takes the
-// uid from the caller's sign-in.
-const callSetUsername = (username: string) =>
-  httpsCallable(firebaseFunctions, 'setUsername')({ username })
 
+// Usernames are written only by the setUsername function, which takes the
+// uid from the caller's sign-in. Resolves false when someone else has the
+// name, and throws on any other failure.
 export const addUsername = async (username: string) => {
   try {
-    await callSetUsername(username)
-  } catch (error: any) {
-    if (error?.code === 'functions/already-exists') {
+    await httpsCallable(firebaseFunctions, 'setUsername')({ username })
+    return true
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'functions/already-exists') {
       return false
     }
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
-  }
-}
-export const checkUsernameExists = async (username: string) => {
-  try {
-    const usernameDocRef = doc(db, 'usernames', username)
-    const currUsernameRes = await getDoc(usernameDocRef)
-    if (currUsernameRes.exists()) {
-      return true
-    }
-    return false
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
-  }
-}
-export const updateUsername = async (username: string) => {
-  try {
-    await callSetUsername(username)
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+    throw error
   }
 }
 
+// Returns null when no user has this username.
 export const getUserData = async (
   username: string
 ): Promise<UserProfileDataType | null> => {
+  const uid = await getUIDFromUsername(username)
+  if (!uid) return null
+  const userDataRes = await getDoc(doc(db, 'userProfileData', uid))
+  if (!userDataRes.exists()) return null
+  return userDataRes.data() as UserProfileDataType
+}
+
+// Usernames end up in URLs (/user/:username) and Firestore doc ids, so keep
+// only lowercase letters, digits and underscores. setUsername refuses names
+// over 100 characters, so cap the name part.
+export const generateUsername = (name: string, suffix: string) => {
+  const base = name
+    .normalize('NFD')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 50)
+  return (base || 'user') + suffix.replace(/[^a-z0-9_]/g, '')
+}
+
+const findUsernameForUid = async (uid: string) => {
+  const q = query(collection(db, 'usernames'), where('uid', '==', uid))
+  const queryRes = await getDocs(q)
+  let username = ''
+  queryRes.forEach(doc => {
+    username = doc.id
+  })
+  return username
+}
+
+// A corrupt cache entry counts as a miss.
+const readCachedUsername = (uid: string): string | null => {
   try {
-    const uid = await getUIDFromUsername(username)
-    const userProfileDataRef = doc(db, 'userProfileData', uid)
-    const userDataRes = await getDoc(userProfileDataRef)
-    if (!userDataRes.exists()) return null
-    return userDataRes.data() as UserProfileDataType
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+    const cached = JSON.parse(localStorage.getItem(PUMP_TRACK_LS_USERNAME)!)
+    const username = cached?.[uid]
+    return typeof username === 'string' && username ? username : null
+  } catch {
     return null
   }
 }
-// setUsername refuses names over 100 characters, so cap the name part.
-const generateUsername = (name: string, createdAt: string) => {
-  return (
-    name.trim().split(' ').join('').toLowerCase().slice(0, 50) +
-    createdAt.slice(-7)
-  )
-}
+
 export const getUsername = async (): Promise<string | undefined> => {
   try {
     await signupFinished
     const uid = auth?.currentUser?.uid
     if (uid) {
-      const localStorageData =
-        localStorage.getItem(PUMP_TRACK_LS_USERNAME) || ''
-      const localStorageUsername = localStorageData
-        ? JSON.parse(localStorageData)[uid]
-        : null
-      if (localStorageUsername) {
-        return localStorageUsername
+      const cachedUsername = readCachedUsername(uid)
+      if (cachedUsername) {
+        return cachedUsername
       }
-      const usernamesRef = collection(db, 'usernames')
-      const q = query(usernamesRef, where('uid', '==', uid))
-      const queryRes = await getDocs(q)
-      let username: string = ''
-      queryRes.forEach(doc => {
-        username = doc.id
-      })
+      const username = await findUsernameForUid(uid)
       if (username) {
         localStorage.setItem(
           PUMP_TRACK_LS_USERNAME,
@@ -174,10 +200,8 @@ export const getUsername = async (): Promise<string | undefined> => {
       }
       return username
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 export const getUIDFromUsername = async (username: string) => {
@@ -186,10 +210,8 @@ export const getUIDFromUsername = async (username: string) => {
     const usernameRes = await getDoc(usernamesRef)
     if (!usernameRes.exists()) return null
     return usernameRes.data().uid ?? null
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
 
@@ -200,32 +222,7 @@ export const updateUserActivity = async () => {
       const updateActivity = httpsCallable(firebaseFunctions, 'updateActivity')
       updateActivity({ uid })
     }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    reportError(error)
   }
 }
-
-// export const changeUIDs = async () => {
-//   const uid = auth?.currentUser?.uid
-//   const currUsername = await getUsername()
-//   if (uid && currUsername) {
-//     const profilesRef = collection(db, 'userProfileData')
-//     const docsSnapshot = await getDocs(profilesRef)
-//     const dataArr: UserProfileDataType[] = []
-//     docsSnapshot.forEach(doc => {
-//       dataArr.push(doc.data() as UserProfileDataType)
-//       deleteDoc(doc.ref)
-//     })
-//     await Promise.all(
-//       dataArr.map(async user => {
-//         const username = user.username
-//         const uid = await getUIDFromUsername(username)
-
-//         const newDoc = doc(profilesRef, uid)
-//         await setDoc(newDoc, user)
-//       })
-//     )
-//   }
-// }

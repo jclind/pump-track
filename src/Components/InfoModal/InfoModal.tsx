@@ -35,6 +35,7 @@ const InfoModal = () => {
       <button
         className='info-btn btn-no-styles'
         onClick={() => setIsOpen(true)}
+        aria-label='How to enter exercises'
       >
         <AiFillInfoCircle className='icon' />
       </button>
