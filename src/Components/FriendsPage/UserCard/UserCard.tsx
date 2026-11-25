@@ -225,13 +225,6 @@ const FriendActions = ({
       ) : isConfirmRemoveOpen ? (
         <>
           <button
-            className='btn-no-styles cancel-remove-friend-btn'
-            onClick={handleCancelConfirm}
-            disabled={isBtnDisabled}
-          >
-            Cancel
-          </button>
-          <button
             className='btn-no-styles confirm-remove-friend-btn'
             onClick={handleRemoveFriend}
             disabled={isBtnDisabled}
@@ -246,6 +239,13 @@ const FriendActions = ({
             ) : (
               'Confirm'
             )}
+          </button>
+          <button
+            className='btn-no-styles cancel-remove-friend-btn'
+            onClick={handleCancelConfirm}
+            disabled={isBtnDisabled}
+          >
+            Cancel
           </button>
         </>
       ) : (
