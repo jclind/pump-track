@@ -17,12 +17,11 @@ describe('convertToTimeNumber', () => {
     expect(convertToTimeNumber('allTime')).toBe(0)
   })
 
-  it('returns a timestamp one week ago for week', () => {
-    const before = Date.now() - 7 * DAY
+  it('returns midnight six days ago for week, the first day on the axis', () => {
     const result = convertToTimeNumber('week')
-    const after = Date.now() - 7 * DAY
-    expect(result).toBeGreaterThanOrEqual(before - MIN)
-    expect(result).toBeLessThanOrEqual(after + MIN)
+    expect(result).toBeLessThanOrEqual(Date.now() - 6 * DAY + MIN)
+    expect(result).toBeGreaterThanOrEqual(Date.now() - 7 * DAY - 60 * MIN)
+    expect(new Date(result).getHours()).toBe(0)
   })
 
   it('returns a timestamp about one month ago for month', () => {
@@ -183,15 +182,16 @@ describe('getStepSize', () => {
 
 // Fixed 2026-10-01; these were skipped suspected-bug tests.
 describe('fixed chart bugs', () => {
-  it('convertToTimeNumber goes back 3 and 6 months, matching the x-axis spans', () => {
+  // The x-axis shows 90 and 180 whole days ending today.
+  it('convertToTimeNumber goes back 90 and 180 days, matching the x-axis spans', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 8, 28, 12, 0, 0))
     try {
       expect(convertToTimeNumber('3-month')).toBe(
-        new Date(2026, 5, 28, 12, 0, 0).getTime()
+        new Date(2026, 8, 28 - 89).getTime()
       )
       expect(convertToTimeNumber('6-month')).toBe(
-        new Date(2026, 2, 28, 12, 0, 0).getTime()
+        new Date(2026, 8, 28 - 179).getTime()
       )
     } finally {
       vi.useRealTimers()

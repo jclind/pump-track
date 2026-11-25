@@ -7,6 +7,7 @@ import { DocumentData, QueryDocumentSnapshot } from 'firebase/firestore'
 import { getDataFromExercise } from '../../util/getDataFromExercise'
 import { formatDateToString } from '../../util/dateUtil'
 import { toast } from 'react-hot-toast'
+import { errorMessage } from '../../util/errorMessage'
 import { TailSpin } from 'react-loader-spinner'
 import ExercisePR from '../ExercisePR/ExercisePR'
 
@@ -68,8 +69,8 @@ const ViewAllExercisesModal = ({
           }
           setMoreLoading(false)
         })
-        .catch((error: any) => {
-          toast.error(error.message || error)
+        .catch((error: unknown) => {
+          toast.error(errorMessage(error))
           setMoreLoading(false)
         })
     }

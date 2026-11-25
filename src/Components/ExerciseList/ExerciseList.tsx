@@ -16,6 +16,7 @@ import { getDataFromExercise } from '../../util/getDataFromExercise'
 import ViewAllExercisesModal from '../ViewAllExercisesModal/ViewAllExercisesModal'
 import { TailSpin } from 'react-loader-spinner'
 import { toast } from 'react-hot-toast'
+import { errorMessage } from '../../util/errorMessage'
 
 const idRefHash: { [x: string]: React.RefObject<HTMLInputElement | null> } = {}
 
@@ -56,14 +57,26 @@ const ExerciseInputs = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Texts this input has passed up and not yet seen come back. With fast
+  // typing the parent can hand back an older one after a newer keystroke,
+  // and taking it as a change from outside dropped the newest character.
+  const sentTexts = useRef<string[]>([])
+
   useEffect(() => {
     const parsedExerciseData = parseExercise(exerciseStr)
     setExerciseName(parsedExerciseData.name)
+    sentTexts.current.push(exerciseStr)
     updateExercise(exercise.id, exerciseStr)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exerciseStr])
   useEffect(() => {
+    const echoIndex = sentTexts.current.lastIndexOf(exercise.text)
+    if (echoIndex !== -1) {
+      sentTexts.current = sentTexts.current.slice(echoIndex)
+      return
+    }
     if (exercise.text !== exerciseStr) {
+      sentTexts.current = []
       setExerciseStr(exercise.text)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,9 +93,9 @@ const ExerciseInputs = ({
               setPrevExerciseData(prevData)
             }
           })
-          .catch((error: any) => {
+          .catch((error: unknown) => {
             console.log(error)
-            toast.error(error, { position: 'bottom-center' })
+            toast.error(errorMessage(error), { position: 'bottom-center' })
           })
       }
     }, 300)
@@ -205,8 +218,8 @@ const ExerciseList = ({
 
   const clearCurrWorkout = async () => {
     await updateCurrentWorkout('', [generateNewExercise()]).catch(
-      (error: any) => {
-        toast.error(error, { position: 'bottom-center' })
+      (error: unknown) => {
+        toast.error(errorMessage(error), { position: 'bottom-center' })
       }
     )
     setWorkoutTitle('')
@@ -221,11 +234,11 @@ const ExerciseList = ({
           setExercises(res.exercises)
           setWorkoutTitle(res.workoutTitle)
         }
-        setLoading(false)
       })
-      .catch((error: any) => {
-        toast.error(error, { position: 'bottom-center' })
+      .catch((error: unknown) => {
+        toast.error(errorMessage(error), { position: 'bottom-center' })
       })
+      .finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -236,9 +249,11 @@ const ExerciseList = ({
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
       if (!loading && !addWorkoutLoading) {
-        updateCurrentWorkout(workoutTitle, exercises).catch((error: any) => {
-          toast.error(error, { position: 'bottom-center' })
-        })
+        updateCurrentWorkout(workoutTitle, exercises).catch(
+          (error: unknown) => {
+            toast.error(errorMessage(error), { position: 'bottom-center' })
+          }
+        )
       }
     }, 1000)
 
@@ -272,16 +287,17 @@ const ExerciseList = ({
   const handleAddWorkout = () => {
     setAddWorkoutLoading(true)
     addWorkout(workoutTitle, exercises)
-      .then(workoutData => {
-        if (!workoutData) throw new Error('Something went wrong')
-        clearCurrWorkout().then(() => setAddWorkoutLoading(false))
+      .then(async workoutData => {
+        // addWorkout has already shown its own error when this is undefined.
+        if (!workoutData) return
         setWorkoutList(prev => [workoutData, ...prev])
+        await clearCurrWorkout()
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
         console.log(error)
-        setAddWorkoutLoading(false)
-        toast.error(error, { position: 'bottom-center' })
+        toast.error(errorMessage(error), { position: 'bottom-center' })
       })
+      .finally(() => setAddWorkoutLoading(false))
   }
 
   return (

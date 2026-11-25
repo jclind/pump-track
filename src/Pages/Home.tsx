@@ -10,7 +10,7 @@ type HomeProps = {
   setShowLoadingOverlay: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-const Home = ({ user, setShowLoadingOverlay }: HomeProps) => {
+const Home = ({ setShowLoadingOverlay }: HomeProps) => {
   const [exerciseListLoading, setExerciseListLoading] = useState(true)
   const [workoutListLoading, setWorkoutListLoading] = useState(true)
   const [workoutList, setWorkoutList] = useState<WorkoutDataType[]>([])
@@ -18,15 +18,11 @@ const Home = ({ user, setShowLoadingOverlay }: HomeProps) => {
   const [currWorkoutTitle, setCurrWorkoutTitle] = useState('')
 
   useEffect(() => {
-    if (!user && (exerciseListLoading || workoutListLoading)) {
-      setShowLoadingOverlay(true)
-    } else {
-      setTimeout(() => {
-        setShowLoadingOverlay(false)
-      }, 300)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, exerciseListLoading, workoutListLoading])
+    const timeout = setTimeout(() => {
+      setShowLoadingOverlay(false)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [setShowLoadingOverlay])
   return (
     <>
       <ExerciseList

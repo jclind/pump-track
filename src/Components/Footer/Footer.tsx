@@ -1,10 +1,9 @@
 import React, { useState } from 'react'
 import Modal from 'react-modal'
 import './Footer.scss'
-import { getTitleAndDate } from '../../util/getTitleAndDate'
-import { parseExercise } from '../../util/parseExercise'
-import { ExerciseDataType, WorkoutDataType } from '../../types'
-import { v4 as uuidv4 } from 'uuid'
+import { parseImportText } from '../../util/parseImportText'
+import { errorMessage } from '../../util/errorMessage'
+import { WorkoutDataType } from '../../types'
 import { importWorkouts } from '../../services/tracker'
 import { TailSpin } from 'react-loader-spinner'
 import { toast } from 'react-hot-toast'
@@ -47,52 +46,45 @@ const Footer = ({ setWorkoutList }: FooterProps) => {
   }
 
   const handleImport = () => {
+    const { workouts: parsedWorkouts, untitled } = parseImportText(importedText)
+    if (parsedWorkouts.length === 0) {
+      toast.error('No workouts found. Start each one with a title line.', {
+        position: 'bottom-center',
+      })
+      return
+    }
+
     setImportLoading(true)
-
-    const workouts = importedText.split(/\n{2,}/)
-
-    const formattedWorkouts: WorkoutDataType[] = []
-
-    workouts.forEach(workoutString => {
-      const workoutList = workoutString.split(/\n/)
-      const { title, date } = getTitleAndDate(workoutList[0])
-      const exercises: ExerciseDataType[] = []
-      workoutList.slice(1).forEach(exercise => {
-        const parsedExercise: ExerciseDataType = parseExercise(exercise)
-        exercises.push(parsedExercise)
-      })
-
-      const workoutData: WorkoutDataType = {
-        id: uuidv4(),
-        name: title,
-        date,
-        exercises,
-      }
-      formattedWorkouts.push(workoutData)
-    })
-
-    importWorkouts(formattedWorkouts)
+    importWorkouts(parsedWorkouts)
       .then(workouts => {
-        if (workouts) {
-          setImportLoading(false)
-          toast.success('Workouts Imported', { position: 'bottom-center' })
-          setIsModalOpen(false)
+        const skipped = untitled
+          ? `, skipped ${untitled} without a title`
+          : ''
+        const plural = workouts.length === 1 ? '' : 's'
+        toast.success(`Imported ${workouts.length} workout${plural}${skipped}`, {
+          position: 'bottom-center',
+        })
+        setIsModalOpen(false)
+        setImportedText('')
 
-          setWorkoutList(prev => {
-            const combinedWorkouts: WorkoutDataType[] = [...prev, ...workouts]
-            const workoutsWithDate = combinedWorkouts
-              .filter(workout => workout.date !== null)
-              .sort((a, b) => b.date! - a.date!)
-            return [
-              ...workoutsWithDate,
-              ...combinedWorkouts.filter(workout => workout.date === null),
-            ]
-          })
-        }
+        setWorkoutList(prev => {
+          const combinedWorkouts: WorkoutDataType[] = [...prev, ...workouts]
+          const workoutsWithDate = combinedWorkouts
+            .filter(workout => workout.date !== null)
+            .sort((a, b) => b.date! - a.date!)
+          return [
+            ...workoutsWithDate,
+            ...combinedWorkouts.filter(workout => workout.date === null),
+          ]
+        })
       })
-      .catch((error: any) => {
-        toast.error(error, { position: 'bottom-center' })
+      .catch((error: unknown) => {
+        console.log(error)
+        toast.error(`Import failed: ${errorMessage(error)}`, {
+          position: 'bottom-center',
+        })
       })
+      .finally(() => setImportLoading(false))
   }
 
   return (

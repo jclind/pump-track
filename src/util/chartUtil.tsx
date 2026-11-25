@@ -4,32 +4,12 @@ import {
   WeightGroupType,
 } from '../types'
 
+// The query starts at the first day on the chart's x-axis, at local midnight,
+// so the data and the axis cover the same days.
 export const convertToTimeNumber = (timePeriod: TimePeriodType): number => {
-  const currentDate = new Date()
-  if (timePeriod === 'allTime') {
-    return 0
-  } else if (timePeriod === 'year') {
-    const oneYearAgo = new Date(
-      currentDate.getFullYear() - 1,
-      currentDate.getMonth(),
-      currentDate.getDate()
-    )
-    return oneYearAgo.getTime()
-  } else if (
-    timePeriod === 'month' ||
-    timePeriod === '3-month' ||
-    timePeriod === '6-month'
-  ) {
-    const period = timePeriod === 'month' ? 1 : timePeriod === '3-month' ? 3 : 6
-    const oneMonthAgo = new Date(currentDate.getTime())
-    oneMonthAgo.setMonth(currentDate.getMonth() - period)
-    return oneMonthAgo.getTime()
-  } else if (timePeriod === 'week') {
-    const oneWeekAgo = new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000)
-    return oneWeekAgo.getTime()
-  } else {
-    throw new Error('Invalid time period')
-  }
+  if (timePeriod === 'allTime') return 0
+  const days = getStartOfDayArrayByPeriod(timePeriod)
+  return days[0]
 }
 
 export const getStartOfDayArrayByPeriod = (
@@ -143,10 +123,12 @@ const findExercisesWithLargestWeight = (
   // Find exercise with largest weight for each group
   for (const date in exercisesByDate) {
     const exercisesGroup = exercisesByDate[date]
-    let maxWeight = 0
+    // Starts below zero so a bodyweight exercise logged at 0 still plots.
+    let maxWeight = -Infinity
     let exerciseWithMaxWeight: ExercisesServerDataType | null = null
 
     exercisesGroup.forEach(exercise => {
+      if (exercise.weights.length === 0) return
       const heaviest = Math.max(
         ...exercise.weights.map(weightGroup => weightGroup.weight)
       )
@@ -178,10 +160,13 @@ export const formatChartData = (
         const { min: currExerciseMinWeight, max: currExerciseMaxWeight } =
           getExerciseWeightRange(ex.weights) ?? {}
 
-        if (currExerciseMinWeight && currExerciseMaxWeight) {
-          if (!minWeight || currExerciseMinWeight < minWeight)
+        if (
+          currExerciseMinWeight !== undefined &&
+          currExerciseMaxWeight !== undefined
+        ) {
+          if (minWeight === null || currExerciseMinWeight < minWeight)
             minWeight = currExerciseMinWeight
-          if (!maxWeight || currExerciseMaxWeight > maxWeight)
+          if (maxWeight === null || currExerciseMaxWeight > maxWeight)
             maxWeight = currExerciseMaxWeight
         }
 
@@ -189,12 +174,13 @@ export const formatChartData = (
 
         return { x: workoutDate, y: currExerciseMaxWeight }
       })
-    const yMin = minWeight
-      ? roundToNearestMultipleOf5(minWeight - 5)
-      : undefined
-    const yMax = maxWeight
-      ? roundToNearestMultipleOf5(maxWeight + 5)
-      : undefined
+    // Weights are never negative, so the axis stops at 0.
+    const yMin =
+      minWeight !== null
+        ? Math.max(0, roundToNearestMultipleOf5(minWeight - 5))
+        : undefined
+    const yMax =
+      maxWeight !== null ? roundToNearestMultipleOf5(maxWeight + 5) : undefined
     return { formattedData, yMin, yMax }
   }
   return {}
@@ -218,7 +204,7 @@ export const getStepSize = (
   min: number | undefined,
   max: number | undefined
 ) => {
-  if (!min || !max) {
+  if (min === undefined || max === undefined) {
     return 5
   }
   const minMaxDiff = max - min

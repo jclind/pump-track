@@ -1,5 +1,6 @@
 import {
   DocumentData,
+  DocumentReference,
   QueryDocumentSnapshot,
   collection,
   deleteDoc,
@@ -10,10 +11,12 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   startAfter,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import {
   CurrentWorkoutType,
@@ -30,6 +33,74 @@ import { updateUserActivity } from './auth'
 import toast from 'react-hot-toast'
 import { httpsCallable } from 'firebase/functions'
 import { calculateMaxWeight } from '../util/calculateMaxWeight'
+import { errorMessage } from '../util/errorMessage'
+
+// Firestore allows 500 writes per batch.
+const WRITES_PER_BATCH = 450
+
+// Enough for a year of daily entries, with room for two a day.
+const CHART_RESULTS_LIMIT = 750
+
+const showError = (error: unknown) => {
+  console.log(error)
+  toast.error(errorMessage(error), { position: 'bottom-center' })
+}
+
+const normalizeTitle = (title: string) => title.toLowerCase().trim()
+
+// Title counts and profile totals are updated after the workout itself is
+// saved. If that follow-up fails, the save still happened, so log it and
+// don't report the whole action as failed.
+const afterSave = async (followUp: () => Promise<void>) => {
+  try {
+    await followUp()
+  } catch (error) {
+    console.log(error)
+  }
+}
+
+// A write with no data is a delete.
+type PendingWrite = { ref: DocumentReference; data?: DocumentData }
+
+const commitInChunks = async (writes: PendingWrite[]) => {
+  for (let i = 0; i < writes.length; i += WRITES_PER_BATCH) {
+    const batch = writeBatch(db)
+    writes.slice(i, i + WRITES_PER_BATCH).forEach(({ ref, data }) => {
+      if (data) batch.set(ref, data)
+      else batch.delete(ref)
+    })
+    await batch.commit()
+  }
+}
+
+// One exercises doc per named exercise. Nameless ones, like a line with only
+// numbers, stay in the workout doc but are left out of history.
+const exerciseDocWrites = (
+  userDataRef: DocumentReference,
+  exercises: ExerciseDataType[],
+  workoutID: string,
+  workoutDate: number
+): { writes: PendingWrite[]; titles: string[] } => {
+  const writes: PendingWrite[] = []
+  const titles: string[] = []
+  exercises.forEach((exercise, idx) => {
+    const name = normalizeTitle(exercise.name)
+    if (!name) return
+    titles.push(name)
+    writes.push({
+      ref: doc(userDataRef, 'exercises', exercise.id),
+      data: {
+        ...exercise,
+        name,
+        workoutID,
+        workoutDate,
+        index: idx,
+        maxWeight: calculateMaxWeight(exercise.weights),
+      },
+    })
+  })
+  return { writes, titles }
+}
 
 export const addWorkout = async (
   name: string,
@@ -41,7 +112,6 @@ export const addWorkout = async (
   const uid = auth?.currentUser?.uid
   if (uid) {
     try {
-      // const promises: Promise<void>[] = []
       const workoutID = uuidv4()
       const parsedExercises: ExerciseDataType[] = exercises.map(ex => {
         return parseExercise(ex.text, ex.id)
@@ -52,8 +122,6 @@ export const addWorkout = async (
 
       const userDataRef = doc(db, 'usersData', uid)
       const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
-      // const exercisesRef = collection(userDataRef, 'exercises')
-      await updateUniqueTitles('workoutTitles', workoutTitle)
 
       const workoutData: WorkoutDataType = {
         name: workoutTitle,
@@ -62,129 +130,119 @@ export const addWorkout = async (
         id: workoutID,
       }
 
-      await setDoc(workoutDocRef, { ...workoutData })
-
-      await addExercises(uid, parsedExercises, workoutID, workoutDate)
-
-      await updateTotalWorkoutsAndExercises(1, parsedExercises.length)
-      await updateUserActivity()
+      const { writes, titles } = exerciseDocWrites(
+        userDataRef,
+        parsedExercises,
+        workoutID,
+        workoutDate
+      )
+      await commitInChunks([
+        { ref: workoutDocRef, data: { ...workoutData } },
+        ...writes,
+      ])
+      await afterSave(async () => {
+        await updateUniqueTitles('workoutTitles', workoutTitle)
+        await updateUniqueTitles('exerciseTitles', titles)
+        await updateTotalWorkoutsAndExercises(1, titles.length)
+        await updateUserActivity()
+      })
 
       return workoutData
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
 
+// Throws on failure so the caller can keep its form open and say why.
+// Returns the workouts as stored, with a date filled in where none was given.
 export const importWorkouts = async (
   workouts: WorkoutDataType[]
-): Promise<WorkoutDataType[] | undefined> => {
+): Promise<WorkoutDataType[]> => {
   const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const promises: Promise<void>[] = []
+  if (!uid) throw new Error('Sign in to import workouts')
 
-      const userDataRef = doc(db, 'usersData', uid)
-      const workoutsRef = collection(userDataRef, 'workouts')
+  const titled = workouts.filter(workout => normalizeTitle(workout.name))
+  if (titled.length === 0) throw new Error('No workouts with a title found')
 
-      const workoutTitles: string[] = []
+  const userDataRef = doc(db, 'usersData', uid)
+  // A workout typed without a date gets the same time on its workout doc
+  // and its exercises docs.
+  const now = Date.now()
 
-      let numWorkouts = 0
-      let numExercises = 0
+  const writes: PendingWrite[] = []
+  const workoutTitles: string[] = []
+  const exerciseTitles: string[] = []
 
-      workouts.forEach(workout => {
-        const workoutID = workout.id
-        const workoutDate = workout.date || new Date().getTime()
-        const workoutData = { ...workout, name: workout.name.toLowerCase() }
-
-        const workoutsRefDoc = doc(workoutsRef, workoutID)
-
-        workoutTitles.push(workoutData.name)
-
-        promises.push(setDoc(workoutsRefDoc, workoutData))
-
-        numWorkouts++
-        // addExercises skips nameless ones, like a trailing blank line.
-        numExercises += workout.exercises.filter(e => e.name).length
-
-        promises.push(
-          addExercises(uid, workout.exercises, workoutID, workoutDate)
-        )
-      })
-      await updateUniqueTitles('workoutTitles', workoutTitles)
-      await Promise.all(promises)
-      await updateTotalWorkoutsAndExercises(numWorkouts, numExercises)
-      return workouts
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+  const imported = titled.map(workout => {
+    const workoutData: WorkoutDataType = {
+      ...workout,
+      name: normalizeTitle(workout.name),
+      date: workout.date ?? now,
     }
-  }
-}
-// Updated all given exercises and adds all exercise names to the updateUniqueTitles funciton
-export const addExercises = async (
-  uid: string,
-  exercises: ExerciseDataType[],
-  workoutID: string,
-  workoutDate: number
-) => {
-  if (uid) {
-    const userDataRef = doc(db, 'usersData', uid)
-    const exercisesRef = collection(userDataRef, 'exercises')
-
-    const promises: Promise<void>[] = []
-    const exerciseTitles: string[] = []
-
-    exercises.forEach((exercise, idx) => {
-      const { id, name } = exercise
-      const exercisesRefDoc = doc(exercisesRef, id)
-      const maxWeight = calculateMaxWeight(exercise.weights)
-      if (name) {
-        exerciseTitles.push(name)
-        promises.push(
-          setDoc(exercisesRefDoc, {
-            ...exercise,
-            name: name.toLowerCase(),
-            workoutID,
-            workoutDate,
-            index: idx,
-            maxWeight,
-          })
-        )
-      }
+    writes.push({
+      ref: doc(userDataRef, 'workouts', workoutData.id),
+      data: workoutData,
     })
+    workoutTitles.push(workoutData.name)
+
+    const exerciseWrites = exerciseDocWrites(
+      userDataRef,
+      workoutData.exercises,
+      workoutData.id,
+      workoutData.date!
+    )
+    writes.push(...exerciseWrites.writes)
+    exerciseTitles.push(...exerciseWrites.titles)
+    return workoutData
+  })
+
+  await commitInChunks(writes)
+  await afterSave(async () => {
+    await updateUniqueTitles('workoutTitles', workoutTitles)
     await updateUniqueTitles('exerciseTitles', exerciseTitles)
-    await Promise.all(promises)
-  }
+    await updateTotalWorkoutsAndExercises(
+      imported.length,
+      exerciseTitles.length
+    )
+  })
+  return imported
 }
+
+// Throws on failure, so the caller doesn't report a delete that didn't happen.
 export const deleteWorkout = async (workoutID: string) => {
   const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const userDataRef = doc(db, 'usersData', uid)
-      const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
-      const exercisesRef = collection(userDataRef, 'exercises')
+  if (!uid) throw new Error('Sign in to delete workouts')
 
-      await deleteDoc(workoutDocRef)
+  const userDataRef = doc(db, 'usersData', uid)
+  const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
+  const exercisesRef = collection(userDataRef, 'exercises')
 
-      const q = query(exercisesRef, where('workoutID', '==', workoutID))
-      const exercisesQuerySnapshot = await getDocs(q)
-      let numExercises = 0
-      exercisesQuerySnapshot.forEach(doc => {
-        numExercises--
-        deleteDoc(doc.ref)
-      })
+  const workoutSnapshot = await getDoc(workoutDocRef)
+  const workoutName = workoutSnapshot.exists()
+    ? (workoutSnapshot.data() as WorkoutDataType).name
+    : null
 
-      await updateTotalWorkoutsAndExercises(-1, numExercises)
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
-  }
+  const exercisesQuerySnapshot = await getDocs(
+    query(exercisesRef, where('workoutID', '==', workoutID))
+  )
+  const writes: PendingWrite[] = [{ ref: workoutDocRef }]
+  const exerciseTitles: string[] = []
+  exercisesQuerySnapshot.forEach(exerciseDoc => {
+    writes.push({ ref: exerciseDoc.ref })
+    const name = (exerciseDoc.data() as ExercisesServerDataType).name
+    if (name) exerciseTitles.push(name)
+  })
+
+  await commitInChunks(writes)
+  await afterSave(async () => {
+    await updateUniqueTitles('workoutTitles', null, workoutName)
+    await updateUniqueTitles('exerciseTitles', null, exerciseTitles)
+    await updateTotalWorkoutsAndExercises(
+      workoutSnapshot.exists() ? -1 : 0,
+      -exercisesQuerySnapshot.size
+    )
+  })
 }
 
 export const searchExercises = async (
@@ -199,7 +257,7 @@ export const searchExercises = async (
       const q = query(
         exercisesRef,
         where('name', '>=', queryText),
-        where('name', '<=', queryText + '\uf8ff'),
+        where('name', '<=', queryText + ''),
         orderBy('name'),
         orderBy('workoutDate', 'desc'),
         limit(1)
@@ -212,10 +270,8 @@ export const searchExercises = async (
       })
 
       return dataArr[0]
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -233,14 +289,14 @@ export const getUniqueTitles = async (
 
       if (!titles) return []
 
-      const sortedTitles = Object.keys(titles).sort(function (a, b) {
-        return titles[b] - titles[a]
-      })
+      const sortedTitles = Object.keys(titles)
+        .filter(title => titles[title] > 0)
+        .sort(function (a, b) {
+          return titles[b] - titles[a]
+        })
       return sortedTitles
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -288,43 +344,37 @@ export const queryAllSingleExercise = async (
       })
 
       return { data: results, lastDoc: newLastDoc, totalResults }
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
+
+// Throws on failure; the Charts page shows the error and clears its spinner.
 export const queryChartExerciseData = async (
   exerciseName: string,
   earliestDate: number
 ): Promise<{ data: ExercisesServerDataType[] } | undefined> => {
   const uid = auth?.currentUser?.uid
   if (uid) {
-    try {
-      const userDataRef = doc(db, 'usersData', uid)
-      const exercisesRef = collection(userDataRef, 'exercises')
+    const userDataRef = doc(db, 'usersData', uid)
+    const exercisesRef = collection(userDataRef, 'exercises')
 
-      const q = query(
-        exercisesRef,
-        where('name', '==', exerciseName.toLowerCase()),
-        where('workoutDate', '>=', earliestDate),
-        orderBy('workoutDate', 'desc'),
-        limit(100)
-      )
+    const q = query(
+      exercisesRef,
+      where('name', '==', exerciseName.toLowerCase()),
+      where('workoutDate', '>=', earliestDate),
+      orderBy('workoutDate', 'desc'),
+      limit(CHART_RESULTS_LIMIT)
+    )
 
-      const results: ExercisesServerDataType[] = []
-      const querySnapshot = await getDocs(q)
-      querySnapshot.forEach(doc => {
-        results.push(doc.data() as ExercisesServerDataType)
-      })
+    const results: ExercisesServerDataType[] = []
+    const querySnapshot = await getDocs(q)
+    querySnapshot.forEach(doc => {
+      results.push(doc.data() as ExercisesServerDataType)
+    })
 
-      return { data: results }
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
+    return { data: results }
   }
 }
 
@@ -355,10 +405,8 @@ export const getSingleExercisePR = async (
       })
 
       return { maxWeight, workoutDate }
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -374,16 +422,16 @@ export const getWorkouts = async (
       const userDataRef = doc(db, 'usersData', uid)
       const workoutsRef = collection(userDataRef, 'workouts')
 
-      let q = query(workoutsRef)
+      let filtered = query(workoutsRef)
       if (workoutNameQuery) {
-        q = query(q, where('name', '==', workoutNameQuery))
+        filtered = query(filtered, where('name', '==', workoutNameQuery))
       }
-      q = query(q, orderBy('date', 'desc'), limit(resultsPerPage))
+      let q = query(filtered, orderBy('date', 'desc'), limit(resultsPerPage))
       if (lastDoc) {
         q = query(q, startAfter(lastDoc))
       }
 
-      const totalResultsSnapshot = await getCountFromServer(workoutsRef)
+      const totalResultsSnapshot = await getCountFromServer(filtered)
       const totalResults = totalResultsSnapshot.data().count
 
       const querySnapshot = await getDocs(q)
@@ -395,10 +443,8 @@ export const getWorkouts = async (
       })
 
       return { data: workouts, lastDoc: newLastDoc, totalResults }
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -407,10 +453,8 @@ export const getMostRecentWorkout = async () => {
     const workoutRes = await getWorkouts(1, null, null)
     const workoutData = workoutRes?.data[0] || null
     return workoutData
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  } catch (error) {
+    showError(error)
   }
 }
 export const getNumberOfTotalWorkouts = async (): Promise<
@@ -424,10 +468,8 @@ export const getNumberOfTotalWorkouts = async (): Promise<
       const totalResultsSnapshot = await getCountFromServer(workoutsRef)
       const totalResults = totalResultsSnapshot.data().count
       return totalResults
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -442,97 +484,126 @@ export const getNumberOfTotalExercises = async (): Promise<
       const totalResultsSnapshot = await getCountFromServer(exercisesRef)
       const totalResults = totalResultsSnapshot.data().count
       return totalResults
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
+// The function accepts at most this much change per call.
+const MAX_TOTALS_CHANGE = 1000
+
 export const updateTotalWorkoutsAndExercises = async (
   numWorkouts: number,
   numExercises: number
 ) => {
-  try {
-    const uid = auth?.currentUser?.uid
-    if (uid) {
-      const cloudUpdateTotalWorkoutsAndExercises = httpsCallable(
-        firebaseFunctions,
-        'updateTotalWorkoutsAndExercises'
-      )
-      cloudUpdateTotalWorkoutsAndExercises({ uid, numWorkouts, numExercises })
-    }
-  } catch (error: any) {
-    const message = error.message || error
-    console.log(error)
-    toast.error(message, { position: 'bottom-center' })
+  const uid = auth?.currentUser?.uid
+  if (!uid) return
+  const cloudUpdateTotalWorkoutsAndExercises = httpsCallable(
+    firebaseFunctions,
+    'updateTotalWorkoutsAndExercises'
+  )
+  const step = (n: number) =>
+    Math.max(-MAX_TOTALS_CHANGE, Math.min(MAX_TOTALS_CHANGE, n))
+  // A big import can change the totals by more than one call takes.
+  let workoutsLeft = Math.trunc(numWorkouts) || 0
+  let exercisesLeft = Math.trunc(numExercises) || 0
+  while (workoutsLeft !== 0 || exercisesLeft !== 0) {
+    const workouts = step(workoutsLeft)
+    const exercises = step(exercisesLeft)
+    await cloudUpdateTotalWorkoutsAndExercises({
+      uid,
+      numWorkouts: workouts,
+      numExercises: exercises,
+    })
+    workoutsLeft -= workouts
+    exercisesLeft -= exercises
   }
 }
 
+// Saves one edited exercise of a past workout. Throws on failure, so the
+// caller can put the old text back.
 export const updateExercise = async (
-  exerciseID: string,
-  workoutID: string,
-  exerciseList: ExerciseDataType[],
-  updatedExerciseData: ExerciseDataType,
-  originalExerciseName: string
+  workout: WorkoutDataType,
+  updatedExerciseData: ExerciseDataType
 ) => {
   const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const userDataRef = doc(db, 'usersData', uid)
-      const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
-      const exerciseDocRef = doc(userDataRef, 'exercises', exerciseID)
+  if (!uid) throw new Error('Sign in to edit workouts')
 
-      const updatedExerciseList = exerciseList.map(ex => {
-        if (ex.id === exerciseID) return updatedExerciseData
+  const exerciseID = updatedExerciseData.id
+  const userDataRef = doc(db, 'usersData', uid)
+  const workoutDocRef = doc(userDataRef, 'workouts', workout.id)
+  const exerciseDocRef = doc(userDataRef, 'exercises', exerciseID)
 
-        return ex
-      })
+  const index = workout.exercises.findIndex(ex => ex.id === exerciseID)
+  const updatedExerciseList = workout.exercises.map(ex =>
+    ex.id === exerciseID ? updatedExerciseData : ex
+  )
 
-      await updateDoc(workoutDocRef, {
-        exercises: updatedExerciseList,
-      })
+  await updateDoc(workoutDocRef, {
+    exercises: updatedExerciseList,
+  })
 
-      await updateDoc(exerciseDocRef, {
-        name: updatedExerciseData.name,
-        weights: updatedExerciseData.weights,
-        originalString: updatedExerciseData.originalString,
-      })
-      await updateUniqueTitles(
-        'exerciseTitles',
-        updatedExerciseData.name,
-        originalExerciseName
-      )
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+  // The exercises doc exists only if the old text had a name, and its name
+  // is the one counted in exerciseTitles.
+  const name = normalizeTitle(updatedExerciseData.name)
+  const existing = await getDoc(exerciseDocRef)
+  const oldName = existing.exists()
+    ? (existing.data() as ExercisesServerDataType).name || null
+    : null
+  const maxWeight = calculateMaxWeight(updatedExerciseData.weights)
+
+  if (!name) {
+    if (existing.exists()) {
+      await deleteDoc(exerciseDocRef)
+      await afterSave(() => updateTotalWorkoutsAndExercises(0, -1))
     }
+  } else if (existing.exists()) {
+    await updateDoc(exerciseDocRef, {
+      name,
+      weights: updatedExerciseData.weights,
+      originalString: updatedExerciseData.originalString,
+      maxWeight,
+    })
+  } else {
+    await setDoc(exerciseDocRef, {
+      ...updatedExerciseData,
+      name,
+      workoutID: workout.id,
+      workoutDate: workout.date ?? Date.now(),
+      index,
+      maxWeight,
+    })
+    await afterSave(() => updateTotalWorkoutsAndExercises(0, 1))
   }
+
+  if (name !== (oldName ?? '')) {
+    await afterSave(() =>
+      updateUniqueTitles('exerciseTitles', name || null, oldName)
+    )
+  }
+  return updatedExerciseList
 }
+
+// Throws on failure, so the caller can put the old title back.
 export const updateWorkout = async (
   currWorkoutData: WorkoutDataType,
   updatedData: { name?: string; date?: number }
 ) => {
   const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const workoutID = currWorkoutData.id
-      const userDataRef = doc(db, 'usersData', uid)
-      const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
-      await updateDoc(workoutDocRef, {
-        ...updatedData,
-      })
-      if (updatedData.name) {
-        const addedTitle = updatedData.name
-        const removedTitle = currWorkoutData.name
-        await updateUniqueTitles('workoutTitles', addedTitle, removedTitle)
-      }
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
+  if (!uid) throw new Error('Sign in to edit workouts')
+
+  const workoutID = currWorkoutData.id
+  const userDataRef = doc(db, 'usersData', uid)
+  const workoutDocRef = doc(userDataRef, 'workouts', workoutID)
+  const data = { ...updatedData }
+  if (data.name !== undefined) data.name = normalizeTitle(data.name)
+
+  await updateDoc(workoutDocRef, data)
+  if (data.name && data.name !== normalizeTitle(currWorkoutData.name)) {
+    const newName = data.name
+    await afterSave(() =>
+      updateUniqueTitles('workoutTitles', newName, currWorkoutData.name)
+    )
   }
 }
 
@@ -545,10 +616,8 @@ export const getCurrentWorkoutData = async () => {
       const result = await getDoc(userDataRef)
       const data = result.data()?.currentWorkout as CurrentWorkoutType
       return data
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
@@ -569,217 +638,57 @@ export const updateCurrentWorkout = async (
         { currentWorkout: currWorkoutData },
         { merge: true }
       )
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+    } catch (error) {
+      showError(error)
     }
   }
 }
 
-export const modifyData = async () => {
-  const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const userDataRef = doc(db, 'usersData', uid)
-      const workoutsRef = collection(userDataRef, 'workouts')
-      const exercisesRef = collection(userDataRef, 'exercises')
-
-      const exercisesQ = query(exercisesRef)
-
-      const exercisesQuerySnapshot = await getDocs(exercisesQ)
-
-      exercisesQuerySnapshot.forEach(() => {
-        // deleteDoc(doc.ref)
-      })
-
-      const workoutsQ = query(workoutsRef)
-
-      const workoutsQuerySnapshot = await getDocs(workoutsQ)
-
-      workoutsQuerySnapshot.forEach(() => {
-        // deleteDoc(doc.ref)
-      })
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
-    }
-  }
+const toTitleList = (titles: string | string[] | null) => {
+  if (!titles) return []
+  const list = typeof titles === 'string' ? [titles] : titles
+  return list.map(normalizeTitle).filter(Boolean)
 }
 
+// Adds and removes counts in usersData/{uid}.workoutTitles or exerciseTitles.
+// A transaction, so two saves at once can't overwrite each other's counts,
+// and set() when the doc doesn't exist yet, as for a brand new user.
+// Throws on failure.
 export const updateUniqueTitles = async (
   field: 'workoutTitles' | 'exerciseTitles',
   addedTitles: string | string[] | null,
   removedTitles: string | string[] | null = null
 ) => {
   const uid = auth?.currentUser?.uid
-  if (uid) {
-    try {
-      const userDataRef = doc(db, 'usersData', uid)
-      const userDataDoc = await getDoc(userDataRef)
-      const titlesDocData = userDataDoc.data()
-      const titles = titlesDocData?.[field] || {}
+  if (!uid) return
+  const added = toTitleList(addedTitles)
+  const removed = toTitleList(removedTitles)
+  if (added.length === 0 && removed.length === 0) return
 
-      if (addedTitles) {
-        if (typeof addedTitles === 'string') {
-          const title = addedTitles.toLowerCase().trim()
-          // Add workout title the workoutTitles object
-          titles[title] = ++titles[title] || 1
-        } else {
-          addedTitles.forEach(title => {
-            titles[title] = ++titles[title] || 1
-          })
-        }
-      }
-      if (removedTitles) {
-        if (typeof removedTitles === 'string') {
-          const title = removedTitles.toLowerCase().trim()
-          titles[title] = --titles[title] || 0
-        } else {
-          removedTitles.forEach(title => {
-            titles[title] = --titles[title] || 0
-          })
-        }
-      }
-      const filteredTitles: { [key: string]: number } = {}
-      for (const [key, value] of Object.entries(titles)) {
-        if (typeof value === 'number' && value > 0) {
-          filteredTitles[key] = value
-        }
-      }
-      await updateDoc(userDataRef, {
-        [field]: filteredTitles,
-      })
-    } catch (error: any) {
-      const message = error.message || error
-      console.log(error)
-      toast.error(message, { position: 'bottom-center' })
+  const userDataRef = doc(db, 'usersData', uid)
+  await runTransaction(db, async transaction => {
+    const userDataDoc = await transaction.get(userDataRef)
+    const titles: { [key: string]: number } = {
+      ...(userDataDoc.data()?.[field] || {}),
     }
-  }
-}
 
-export const findUniqueWorkoutTitlesFromCollection = async () => {
-  const uid = auth?.currentUser?.uid
-  if (uid) {
-    const userDataRef = doc(db, 'usersData', uid)
-    const workoutsRef = collection(userDataRef, 'workouts')
-    const workoutsQ = query(workoutsRef)
-    const workoutsQuerySnapshot = await getDocs(workoutsQ)
-    const workoutTitles: { [key: string]: number } = {}
-
-    workoutsQuerySnapshot.forEach(doc => {
-      const workoutData = doc.data() as WorkoutDataType
-      const workoutTitle = workoutData.name.toLowerCase().trim()
-      workoutTitles[workoutTitle] = ++workoutTitles[workoutTitle] || 1
+    added.forEach(title => {
+      titles[title] = (titles[title] || 0) + 1
+    })
+    removed.forEach(title => {
+      titles[title] = (titles[title] || 0) - 1
     })
 
-    updateDoc(userDataRef, {
-      workoutTitles,
-    })
-  }
+    const filteredTitles: { [key: string]: number } = {}
+    for (const [key, value] of Object.entries(titles)) {
+      if (typeof value === 'number' && value > 0) {
+        filteredTitles[key] = value
+      }
+    }
+    if (userDataDoc.exists()) {
+      transaction.update(userDataRef, { [field]: filteredTitles })
+    } else {
+      transaction.set(userDataRef, { [field]: filteredTitles })
+    }
+  })
 }
-export const findUniqueExerciseTitlesFromCollection = async () => {
-  const uid = auth?.currentUser?.uid
-  if (uid) {
-    const userDataRef = doc(db, 'usersData', uid)
-    const exercisesRef = collection(userDataRef, 'exercises')
-    const exerciseQ = query(exercisesRef)
-    const exerciseQuerySnapshot = await getDocs(exerciseQ)
-
-    const titles: string[] = []
-
-    exerciseQuerySnapshot.forEach(doc => {
-      const exerciseData = doc.data() as WorkoutDataType
-      const exerciseTitle = exerciseData.name.toLowerCase().trim()
-      titles.push(exerciseTitle)
-      // workoutTitles[exerciseTitle] = ++workoutTitles[exerciseTitle] || 1
-      // workoutTitle = workoutTitle.replace('day', '').toLowerCase()
-      // if (workoutTitle === 'leg') workoutTitle = 'legs'
-
-      // console.log(workoutData.name, workoutTitle)
-      // updateDoc(doc.ref, {
-      //   name: workoutTitle,
-      // })
-    })
-
-    // updateDoc(userDataRef, {
-    //   workoutTitles,
-    // })
-    await updateUniqueTitles('exerciseTitles', titles)
-  }
-}
-
-// export const updateNumberOfDocuments = async () => {
-//   const userDataRef = collection(db, 'usersData')
-//   const userQ = query(userDataRef)
-//   const userQRes = await getDocs(userQ)
-//   const uidArr: string[] = []
-//   userQRes.forEach(doc => {
-//     uidArr.push(doc.id)
-//   })
-
-//   const addData = async (uid: string) => {
-//     const usernamesRef = collection(db, 'usernames')
-//     const q = query(usernamesRef, where('uid', '==', uid))
-//     const queryRes = await getDocs(q)
-//     let username: string = ''
-//     queryRes.forEach(doc => {
-//       username = doc.id
-//     })
-//     console.log(username)
-//     const userProfileDataRef = doc(db, 'userProfileData', username)
-//     const totalExercises = await getNumberOfTotalExercises(uid)
-//     const totalWorkouts = await getNumberOfTotalWorkouts(uid)
-//     await setDoc(
-//       userProfileDataRef,
-//       { totalExercises, totalWorkouts },
-//       { merge: true }
-//     )
-//   }
-//   uidArr.forEach(uid => {
-//     addData(uid)
-//   })
-
-//   // const exercisesRef = collection(userDataRef, 'exercises')
-// }
-
-// export const addUsersData = () => {
-//   const userProfileDataRef = collection(db, 'userProfileData')
-//   console.log(userProfileData)
-//   userProfileData.users.forEach(user => {
-//     const { displayName, photoUrl, localId, createdAt } = user
-//     const username =
-//       displayName.trim().split(' ').join('').toLowerCase() +
-//       createdAt.toString().slice(-7)
-//     addUsername(localId, username)
-//     const userProfileDataDoc = doc(userProfileDataRef, username)
-//     const userData = {
-//       displayName,
-//       photoUrl,
-//       username,
-//       createdAt: Number(createdAt),
-//     }
-//     setDoc(userProfileDataDoc, userData)
-//   })
-//   console.log('done')
-// }
-
-// export const updateUsersData = async () => {
-//   const userDataCollection = collection(db, 'usersData')
-//   const usersQ = query(userDataCollection)
-//   const usersQuerySnapshot = await getDocs(usersQ)
-//   // const publicUserDataRef = doc(db, 'publicUserData', currUserID)
-
-//   const userIDs: string[] = []
-
-//   usersQuerySnapshot.forEach(doc => {
-//     const currUserID = doc.id
-//     userIDs.push(currUserID)
-//   })
-
-//   userIDs.forEach(userID => {
-//     // getAdminAuth.getAuth(userID).then((res: any) => console.log(res))
-//     // getAuth().getUser(userID)
-//   })
-// }

@@ -12,6 +12,7 @@ import {
 import ExerciseChart from '../../Components/ExerciseChart/ExerciseChart'
 import { convertToTimeNumber } from '../../util/chartUtil'
 import toast from 'react-hot-toast'
+import { errorMessage } from '../../util/errorMessage'
 
 const Charts = () => {
   const [selectedExercise, setSelectedExercise] =
@@ -35,25 +36,31 @@ const Charts = () => {
   }, [])
 
   useEffect(() => {
-    if (selectedExercise) {
-      setLoading(true)
-      queryChartExerciseData(
-        selectedExercise.value,
-        convertToTimeNumber(timeSpan)
-      )
-        .then(res => {
-          if (res?.data) {
-            setExerciseData(res.data ?? null)
-          } else {
-            setExerciseData(null)
-          }
-          setLoading(false)
-        })
-        .catch((error: any) => {
-          toast.error(error, { position: 'bottom-center' })
-        })
-    } else {
+    if (!selectedExercise) {
       setExerciseData(null)
+      return
+    }
+    // Ignore a reply for an exercise or time span the user has moved off.
+    let current = true
+    setLoading(true)
+    queryChartExerciseData(
+      selectedExercise.value,
+      convertToTimeNumber(timeSpan)
+    )
+      .then(res => {
+        if (current) setExerciseData(res?.data ?? null)
+      })
+      .catch((error: unknown) => {
+        if (current) {
+          setExerciseData(null)
+          toast.error(errorMessage(error), { position: 'bottom-center' })
+        }
+      })
+      .finally(() => {
+        if (current) setLoading(false)
+      })
+    return () => {
+      current = false
     }
   }, [selectedExercise, timeSpan])
 
